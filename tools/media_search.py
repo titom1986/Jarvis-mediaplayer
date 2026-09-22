@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from time import perf_counter
 
 from tools import seerr
 
@@ -294,9 +295,25 @@ def media_search(media_type, include=None, exclude=None):
                 continue
         residual_exclude.append(group)
 
+    timings = {}
+    t_candidates = perf_counter()
+
     for group in include:
         people_ids = _person_ids(group.get("people", []), media_type)
-        if people_ids is not None:
+        has_metadata_filters = any(
+            group.get(key) for key in ("genres", "keywords", "dates")
+        )
+
+        if people_ids is not None and has_metadata_filters:
+            # Réduit AVANT l'enrichissement : filmographie ∩ Discover.
+            # Aucune donnée n'est cachée ; les deux ensembles sont frais.
+            discover_ids = _discover_ids(
+                group,
+                media_type,
+                exclude_keyword_ids=native_exclude_keyword_ids,
+            )
+            ids = people_ids & discover_ids
+        elif people_ids is not None:
             ids = people_ids
         else:
             ids = _discover_ids(
@@ -305,6 +322,8 @@ def media_search(media_type, include=None, exclude=None):
                 exclude_keyword_ids=native_exclude_keyword_ids,
             )
         include_candidates.append((group, ids))
+
+    timings["candidate_selection_s"] = round(perf_counter() - t_candidates, 3)
 
     # OR entre les groupes include.
     candidate_ids = set()
@@ -377,6 +396,7 @@ def media_search(media_type, include=None, exclude=None):
             return None
 
     matches = []
+    t_details = perf_counter()
 
     with ThreadPoolExecutor(max_workers=8) as pool:
         futures = [
@@ -388,6 +408,8 @@ def media_search(media_type, include=None, exclude=None):
             result = future.result()
             if result:
                 matches.append(result)
+
+    timings["details_filter_s"] = round(perf_counter() - t_details, 3)
 
     matches.sort(
         key=lambda x: (
@@ -404,6 +426,7 @@ def media_search(media_type, include=None, exclude=None):
         "candidates": len(candidate_ids),
         "count": len(matches),
         "results": matches,
+        "_perf": timings,
     }
 
 
