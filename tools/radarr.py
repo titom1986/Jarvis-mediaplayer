@@ -117,6 +117,82 @@ def queue_status(title):
         return {"error": f"Erreur Radarr : {e}"}
 
 
+def request_movie(tmdb_id):
+    """Ajoute un film TMDB à Radarr et lance sa recherche."""
+    cfg = SERVICES["radarr"]
+    if not cfg["api_key"]:
+        return {"error": "RADARR_API_KEY non configurée"}
+
+    headers = {"X-Api-Key": cfg["api_key"]}
+
+    try:
+        lookup = requests.get(
+            f'{cfg["url"]}/api/v3/movie/lookup/tmdb',
+            headers=headers,
+            params={"tmdbId": tmdb_id},
+            timeout=10
+        )
+        lookup.raise_for_status()
+        movie = lookup.json()
+
+        roots = requests.get(
+            f'{cfg["url"]}/api/v3/rootfolder',
+            headers=headers,
+            timeout=10
+        )
+        roots.raise_for_status()
+        root_folders = roots.json()
+        if not root_folders:
+            return {"error": "Aucun root folder Radarr configuré"}
+
+        profiles = requests.get(
+            f'{cfg["url"]}/api/v3/qualityprofile',
+            headers=headers,
+            timeout=10
+        )
+        profiles.raise_for_status()
+        quality_profiles = profiles.json()
+        if not quality_profiles:
+            return {"error": "Aucun quality profile Radarr configuré"}
+
+        existing = status(movie.get("title", ""))
+        if existing.get("found"):
+            return {
+                "added": False,
+                "alreadyExists": True,
+                **existing
+            }
+
+        payload = {
+            **movie,
+            "qualityProfileId": quality_profiles[0]["id"],
+            "rootFolderPath": root_folders[0]["path"],
+            "monitored": True,
+            "addOptions": {"searchForMovie": True},
+        }
+
+        response = requests.post(
+            f'{cfg["url"]}/api/v3/movie',
+            headers=headers,
+            json=payload,
+            timeout=15
+        )
+        response.raise_for_status()
+        added = response.json()
+
+        return {
+            "added": True,
+            "id": added.get("id"),
+            "tmdbId": added.get("tmdbId"),
+            "title": added.get("title"),
+            "year": added.get("year"),
+            "monitored": added.get("monitored"),
+        }
+
+    except requests.RequestException as e:
+        return {"error": f"Erreur Radarr : {e}"}
+
+
 TOOL = {
     "type": "function",
     "function": {
@@ -150,6 +226,25 @@ QUEUE_TOOL = {
                 }
             },
             "required": ["title"]
+        }
+    }
+}
+
+
+REQUEST_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "radarr_request_movie",
+        "description": "Ajoute dans Radarr un film identifié par son identifiant TMDB et lance immédiatement sa recherche. À utiliser uniquement si l'utilisateur demande explicitement de télécharger ou d'ajouter le film.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "tmdb_id": {
+                    "type": "integer",
+                    "description": "Identifiant TMDB exact du film"
+                }
+            },
+            "required": ["tmdb_id"]
         }
     }
 }
