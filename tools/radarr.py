@@ -47,10 +47,7 @@ def status(title):
         movie = _find_movie(movies, title)
 
         if movie is None:
-            return {
-                "found": False,
-                "title": title
-            }
+            return {"found": False, "title": title}
 
         movie_id = movie.get("id")
         queue_item = next(
@@ -81,14 +78,9 @@ def queue_status(title):
         movie = _find_movie(movies, title)
 
         if movie is None:
-            return {
-                "found": False,
-                "title": title,
-                "inQueue": False
-            }
+            return {"found": False, "title": title, "inQueue": False}
 
         movie_id = movie.get("id")
-
         queue_item = next(
             (item for item in queue if item.get("movieId") == movie_id),
             None
@@ -117,7 +109,31 @@ def queue_status(title):
         return {"error": f"Erreur Radarr : {e}"}
 
 
-def request_movie(tmdb_id):
+def _select_request_settings(cfg, root_folders, quality_profiles, french):
+    root_path = cfg.get("root_folder")
+    profile_name = cfg.get("french_profile") if french else cfg.get("default_profile")
+
+    if not root_path:
+        return None, None, "RADARR_ROOT_FOLDER non configuré"
+    if not profile_name:
+        key = "RADARR_FRENCH_PROFILE" if french else "RADARR_DEFAULT_PROFILE"
+        return None, None, f"{key} non configuré"
+
+    root = next((item for item in root_folders if item.get("path") == root_path), None)
+    if root is None:
+        return None, None, f"Root folder Radarr introuvable : {root_path}"
+
+    profile = next(
+        (item for item in quality_profiles if item.get("name") == profile_name),
+        None
+    )
+    if profile is None:
+        return None, None, f"Quality profile Radarr introuvable : {profile_name}"
+
+    return root, profile, None
+
+
+def request_movie(tmdb_id, french=False):
     """Ajoute un film TMDB à Radarr et lance sa recherche."""
     cfg = SERVICES["radarr"]
     if not cfg["api_key"]:
@@ -135,26 +151,6 @@ def request_movie(tmdb_id):
         lookup.raise_for_status()
         movie = lookup.json()
 
-        roots = requests.get(
-            f'{cfg["url"]}/api/v3/rootfolder',
-            headers=headers,
-            timeout=10
-        )
-        roots.raise_for_status()
-        root_folders = roots.json()
-        if not root_folders:
-            return {"error": "Aucun root folder Radarr configuré"}
-
-        profiles = requests.get(
-            f'{cfg["url"]}/api/v3/qualityprofile',
-            headers=headers,
-            timeout=10
-        )
-        profiles.raise_for_status()
-        quality_profiles = profiles.json()
-        if not quality_profiles:
-            return {"error": "Aucun quality profile Radarr configuré"}
-
         existing = status(movie.get("title", ""))
         if existing.get("found"):
             return {
@@ -163,10 +159,32 @@ def request_movie(tmdb_id):
                 **existing
             }
 
+        roots = requests.get(
+            f'{cfg["url"]}/api/v3/rootfolder',
+            headers=headers,
+            timeout=10
+        )
+        roots.raise_for_status()
+        root_folders = roots.json()
+
+        profiles = requests.get(
+            f'{cfg["url"]}/api/v3/qualityprofile',
+            headers=headers,
+            timeout=10
+        )
+        profiles.raise_for_status()
+        quality_profiles = profiles.json()
+
+        root, profile, error = _select_request_settings(
+            cfg, root_folders, quality_profiles, french
+        )
+        if error:
+            return {"error": error}
+
         payload = {
             **movie,
-            "qualityProfileId": quality_profiles[0]["id"],
-            "rootFolderPath": root_folders[0]["path"],
+            "qualityProfileId": profile["id"],
+            "rootFolderPath": root["path"],
             "monitored": True,
             "addOptions": {"searchForMovie": True},
         }
@@ -187,6 +205,8 @@ def request_movie(tmdb_id):
             "title": added.get("title"),
             "year": added.get("year"),
             "monitored": added.get("monitored"),
+            "qualityProfile": profile.get("name"),
+            "rootFolderPath": root.get("path"),
         }
 
     except requests.RequestException as e:
@@ -201,10 +221,7 @@ TOOL = {
         "parameters": {
             "type": "object",
             "properties": {
-                "title": {
-                    "type": "string",
-                    "description": "Titre du film"
-                }
+                "title": {"type": "string", "description": "Titre du film"}
             },
             "required": ["title"]
         }
@@ -220,10 +237,7 @@ QUEUE_TOOL = {
         "parameters": {
             "type": "object",
             "properties": {
-                "title": {
-                    "type": "string",
-                    "description": "Titre du film"
-                }
+                "title": {"type": "string", "description": "Titre du film"}
             },
             "required": ["title"]
         }
@@ -235,13 +249,22 @@ REQUEST_TOOL = {
     "type": "function",
     "function": {
         "name": "radarr_request_movie",
-        "description": "Ajoute dans Radarr un film identifié par son identifiant TMDB et lance immédiatement sa recherche. À utiliser uniquement si l'utilisateur demande explicitement de télécharger ou d'ajouter le film.",
+        "description": (
+            "Ajoute dans Radarr un film identifié par son identifiant TMDB et lance immédiatement sa recherche. "
+            "À utiliser uniquement si l'utilisateur demande explicitement de télécharger ou d'ajouter le film. "
+            "Le profil qualité standard est utilisé par défaut ; french=true uniquement si l'utilisateur demande explicitement une version française."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
                 "tmdb_id": {
                     "type": "integer",
                     "description": "Identifiant TMDB exact du film"
+                },
+                "french": {
+                    "type": "boolean",
+                    "description": "true uniquement si l'utilisateur demande explicitement une version française",
+                    "default": False
                 }
             },
             "required": ["tmdb_id"]
