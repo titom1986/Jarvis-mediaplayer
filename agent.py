@@ -9,6 +9,7 @@ from tools import radarr, sonarr, plex, media_search
 TOOLS = [
     radarr.TOOL,
     radarr.QUEUE_TOOL,
+    radarr.REQUEST_TOOL,
     sonarr.TOOL,
     plex.TOOL,
     media_search.MEDIA_SEARCH_TOOL,
@@ -21,6 +22,9 @@ def execute_tool(name, args):
 
     if name == "radarr_queue_status":
         return radarr.queue_status(args["title"])
+
+    if name == "radarr_request_movie":
+        return radarr.request_movie(args["tmdb_id"])
 
     if name == "sonarr_status":
         return sonarr.status(args["title"])
@@ -46,7 +50,7 @@ def run_agent(question):
         {
             "role": "system",
             "content": (
-                "Tu administres un serveur multimédia en lecture seule. "
+                 "Tu administres un serveur multimédia. "
                 "Réponds dans la langue de l'utilisateur. "
                 "Analyse toute la demande avant de choisir un outil. "
                 "Pour rechercher un film ou une série selon son contenu, son casting, "
@@ -65,6 +69,8 @@ def run_agent(question):
                 "Quand plusieurs candidats sont retournés, utilise leurs notes et nombres de votes seulement si la demande "
                 "demande une recommandation ou un classement. Si l'utilisateur demande d'éviter les éléments déjà vus, "
                 "vérifie les candidats dans Plex, dans l'ordre utile, jusqu'à en trouver un admissible. "
+                "N'utilise radarr_request_movie que si l'utilisateur a explicitement demandé de télécharger ou ajouter le film. "
+                "Avant cette action, vérifie d'abord Plex puis Radarr afin d'éviter un ajout inutile ou en double. "
                 "Après chaque résultat, décide si une autre vérification est réellement nécessaire. "
                 "Quand la demande est entièrement vérifiée, n'appelle plus d'outil."
             )
