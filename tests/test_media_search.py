@@ -69,5 +69,71 @@ class MediaSearchTests(unittest.TestCase):
         self.assertEqual([x["id"] for x in r["results"]], [2, 1])
 
 
+    def test_realistic_people_first_dataset_filters_before_returning(self):
+        # Jeu représentatif : une filmographie assez large, mais seulement quelques
+        # films satisfont genre + décennie + exclusion.
+        details = {}
+        credits = []
+        for i in range(1, 166):
+            year = 1980 + (i % 45)
+            genres = ["Action"]
+            keywords = []
+            if i in (10, 20, 30, 40):
+                year = 1994 + (i // 10)
+                genres = ["Science Fiction"]
+            if i == 20:
+                keywords = ["dystopia"]
+            details[i] = {
+                "mediaType": "movie", "id": i, "title": f"Movie {i}",
+                "releaseDate": f"{year:04d}-01-01", "genres": genres,
+                "keywords": keywords, "rating": 7.0 + (i % 10) / 10,
+                "voteCount": 100 + i,
+            }
+            credits.append({"mediaType": "movie", "id": i})
+
+        # Armageddon-like winner: valid SF 90s, not dystopian.
+        details[10]["releaseDate"] = "1998-07-01"
+        details[10]["rating"] = 6.833
+        details[10]["voteCount"] = 8844
+        # Other crafted candidates: one dystopian, one outside decade, one valid.
+        details[20]["releaseDate"] = "1995-01-01"
+        details[30]["releaseDate"] = "2001-01-01"
+        details[40]["releaseDate"] = "1997-01-01"
+
+        with patch("tools.media_search.seerr.person_credits", return_value={"results": credits}), \
+             patch("tools.media_search.seerr.media_details", side_effect=lambda i, t: details[i]), \
+             patch("tools.media_search.seerr.discover") as discover:
+            r = media_search.media_search(
+                "movie",
+                include=[{
+                    "people": ["Bruce Willis"],
+                    "genres": ["Science Fiction"],
+                    "dates": [{"from": 1990, "to": 1999}],
+                }],
+                exclude=[{"keywords": ["dystopia"]}],
+            )
+
+        self.assertFalse(discover.called, "Une recherche avec personne ne doit pas scanner Discover")
+        self.assertEqual(r["candidates"], 165)
+        self.assertEqual({x["id"] for x in r["results"]}, {10, 40})
+        self.assertNotIn(20, {x["id"] for x in r["results"]})
+        self.assertNotIn(30, {x["id"] for x in r["results"]})
+
+    def test_realistic_broad_discover_dataset_paginates_without_people(self):
+        # Sans personne, Discover est bien la source de candidats et peut être volumineux.
+        pages = {
+            1: {"results": [{"id": 1}, {"id": 2}], "totalPages": 3},
+            2: {"results": [{"id": 3}], "totalPages": 3},
+            3: {"results": [], "totalPages": 3},
+        }
+        with patch("tools.media_search.seerr.discover", side_effect=lambda *a, **k: pages[k["page"]]) as discover:
+            r = media_search.media_search(
+                "movie",
+                include=[{"genres": ["Science Fiction"], "dates": [{"from": 1990, "to": 1999}]}],
+            )
+        self.assertEqual(discover.call_count, 3)
+        self.assertEqual(r["candidates"], 3)
+
+
 if __name__ == "__main__":
     unittest.main()
