@@ -305,14 +305,10 @@ def media_search(media_type, include=None, exclude=None):
         )
 
         if people_ids is not None and has_metadata_filters:
-            # Réduit AVANT l'enrichissement : filmographie ∩ Discover.
-            # Aucune donnée n'est cachée ; les deux ensembles sont frais.
-            discover_ids = _discover_ids(
-                group,
-                media_type,
-                exclude_keyword_ids=native_exclude_keyword_ids,
-            )
-            ids = people_ids & discover_ids
+            # La filmographie est déjà un petit ensemble ciblé. Enrichir ces IDs
+            # puis appliquer les critères est beaucoup moins coûteux que parcourir
+            # toutes les pages Discover d'un genre/période très large.
+            ids = people_ids
         elif people_ids is not None:
             ids = people_ids
         else:
