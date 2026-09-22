@@ -49,9 +49,15 @@ class MediaSearchTests(unittest.TestCase):
         self.assertEqual({x["id"] for x in r["results"]}, {1, 3})
 
     def test_exclusion_group(self):
-        with patch("tools.media_search.seerr.discover", return_value={"results": [{"id": 1}, {"id": 2}], "totalPages": 1}):
+        def discover(*a, **k):
+            results = [{"id": 1}, {"id": 2}]
+            if k.get("exclude_keyword_ids") == [2]:
+                results = [{"id": 1}]
+            return {"results": results, "totalPages": 1}
+        with patch("tools.media_search.seerr.discover", side_effect=discover) as mocked:
             r = media_search.media_search("movie", include=[{"genres": ["Science Fiction"]}], exclude=[{"keywords": ["dystopia"]}])
         self.assertEqual([x["id"] for x in r["results"]], [1])
+        self.assertEqual(mocked.call_args.kwargs["exclude_keyword_ids"], [2])
 
     def test_people_is_optional_but_supported(self):
         r = media_search.media_search("movie", include=[{"people": ["Bruce Willis"], "keywords": ["time travel"], "dates": [{"from": 1990, "to": 1999}]}])
