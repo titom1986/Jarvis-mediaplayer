@@ -155,14 +155,20 @@ def search_keyword(query):
     if not SEERR_API_KEY:
         return {"error": "SEERR_API_KEY non configurée"}
 
-    r = requests.get(
-        f"{SEERR_URL}/api/v1/search/keyword",
-        headers={"X-Api-Key": SEERR_API_KEY},
-        params={"query": query, "page": 1},
-        timeout=15,
-    )
-    r.raise_for_status()
-    return r.json()
+    try:
+        r = requests.get(
+            f"{SEERR_URL}/api/v1/search/keyword",
+            headers={"X-Api-Key": SEERR_API_KEY},
+            params={"query": query, "page": 1},
+            timeout=15,
+        )
+        r.raise_for_status()
+        return r.json()
+    except requests.RequestException as e:
+        return {
+            "error": f"Recherche keyword Seerr impossible : {e}",
+            "query": query,
+        }
 
 
 def discover(
