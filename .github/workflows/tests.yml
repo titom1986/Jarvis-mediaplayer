@@ -13,6 +13,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install requests
+      - run: pip install requests python-dotenv
       - run: python -m py_compile agent.py tools/*.py tests/*.py
       - run: python -m unittest discover -s tests -v
