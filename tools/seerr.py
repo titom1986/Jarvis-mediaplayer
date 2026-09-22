@@ -128,6 +128,88 @@ def person_credits(person_id, limit=20):
         "results": results if limit is None else results[:limit]
     }
 
+
+def genres(media_type):
+    """Liste les genres officiels TMDB exposés par Seerr."""
+    if media_type not in ("movie", "tv"):
+        return []
+
+    if not SEERR_API_KEY:
+        return []
+
+    r = requests.get(
+        f"{SEERR_URL}/api/v1/genres/{media_type}",
+        headers={"X-Api-Key": SEERR_API_KEY},
+        timeout=15,
+    )
+    r.raise_for_status()
+    data = r.json()
+
+    return data if isinstance(data, list) else data.get("genres", [])
+
+
+def search_keyword(query):
+    """Résout un nom de mot-clé en identifiant TMDB via Seerr."""
+    if not SEERR_API_KEY:
+        return {"error": "SEERR_API_KEY non configurée"}
+
+    r = requests.get(
+        f"{SEERR_URL}/api/v1/search/keyword",
+        headers={"X-Api-Key": SEERR_API_KEY},
+        params={"query": query, "page": 1},
+        timeout=15,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+def discover(
+    media_type,
+    page=1,
+    genre_ids=None,
+    keyword_ids=None,
+    date_from=None,
+    date_to=None,
+    sort_by="popularity.desc",
+):
+    """Interroge l'API Discover de Seerr avec des filtres TMDB natifs."""
+    if not SEERR_API_KEY:
+        return {"error": "SEERR_API_KEY non configurée"}
+
+    if media_type not in ("movie", "tv"):
+        return {"error": f"Type de média invalide : {media_type}"}
+
+    params = {"page": page, "sortBy": sort_by}
+
+    if genre_ids:
+        params["genre"] = ",".join(str(value) for value in genre_ids)
+
+    if keyword_ids:
+        params["keywords"] = ",".join(str(value) for value in keyword_ids)
+
+    if media_type == "movie":
+        path = "movies"
+        if date_from:
+            params["primaryReleaseDateGte"] = date_from
+        if date_to:
+            params["primaryReleaseDateLte"] = date_to
+    else:
+        path = "tv"
+        if date_from:
+            params["firstAirDateGte"] = date_from
+        if date_to:
+            params["firstAirDateLte"] = date_to
+
+    r = requests.get(
+        f"{SEERR_URL}/api/v1/discover/{path}",
+        headers={"X-Api-Key": SEERR_API_KEY},
+        params=params,
+        timeout=15,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
 def media_details(media_id, media_type="movie"):
     if not SEERR_API_KEY:
         return {"error": "SEERR_API_KEY non configurée"}
@@ -160,6 +242,8 @@ def media_details(media_id, media_type="movie"):
             for k in data.get("keywords", [])
             if k.get("name")
         ],
+        "rating": data.get("voteAverage"),
+        "voteCount": data.get("voteCount"),
         "overview": data.get("overview") or "",
     }
 
