@@ -115,7 +115,11 @@ def main():
                 out=data.get("eval_count") or 0; ev=(data.get("eval_duration") or 0)/1e9
                 rate=out/ev if ev else 0
                 print(f"{model},{case['name']},{int(ok)},{wall:.3f},{data.get('prompt_eval_count')},{out},{rate:.2f}")
-                if not ok: print("  FAIL:",detail)
+                if not ok:
+                    print("  FAIL:", detail)
+                    msg = data.get("message") or {}
+                    print("  CONTENT:", repr(msg.get("content", "")))
+                    print("  TOOL_CALLS:", json.dumps(msg.get("tool_calls") or [], ensure_ascii=False))
             except Exception as e:
                 print(f"{model},{case['name']},0,ERROR,,,,")
                 print("  ERROR:",repr(e))
