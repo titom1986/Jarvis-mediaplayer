@@ -3,6 +3,7 @@ import requests
 import time
 
 from config import OLLAMA_URL, MODEL
+from planner import extract_intent, compile_media_search
 from tools import radarr, sonarr, plex, media_search
 
 
@@ -46,45 +47,47 @@ def run_agent(question):
     # Conversation interne du planner.
     # Il peut appeler des outils, observer leurs résultats,
     # puis décider d'en appeler d'autres.
+    intent = extract_intent(question)
+    compiled_search = compile_media_search(intent)
+
+    # Le LLM extrait la sémantique ; Python compile la logique booléenne.
+    # Seerr/Plex/Radarr restent interrogés en temps réel : aucun cache métier.
+    preverified = []
+    if compiled_search is not None:
+        result = media_search.media_search(**compiled_search)
+        print("\n--- Recherche structurée ---")
+        print("> seerr_media_search(" + str(compiled_search) + ")")
+        print("<", json.dumps(result, ensure_ascii=False))
+        preverified.append({
+            "tool": "seerr_media_search",
+            "arguments": compiled_search,
+            "result": result,
+        })
+
     messages = [
         {
             "role": "system",
             "content": (
-                 "Tu administres un serveur multimédia. "
-                "Réponds dans la langue de l'utilisateur. "
-                "Analyse toute la demande avant de choisir un outil. "
-                "Pour rechercher un film ou une série selon son contenu, son casting, "
-                "son genre ou sa période, utilise seerr_media_search. "
-                "Traduis toi-même le sens de la demande en critères adaptés aux métadonnées : "
-                "personnes, genres, mots-clés et dates. "
-                "Dans seerr_media_search, une demande cumulative forme UN SEUL groupe : personne + genre + thème + période "
-                "restent ensemble dans ce groupe. Toutes ses contraintes sont en AND, même si elles appartiennent "
-                "à des catégories différentes. Les groupes distincts sont exclusivement des alternatives OR explicites "
-                "(par exemple « soit ... soit ... »). Une simple succession de critères ne crée jamais plusieurs groupes. "
-                "Classe les personnes dans people, les genres de catalogue dans genres, les thèmes ou concepts "
-                "dans keywords et les périodes dans dates. Dans exclude, exprime le critère lui-même sans mot de négation : "
-                "« pas dystopique » devient par exemple le concept positif « dystopia », jamais « not dystopian ». "
-                "Une décennie est inclusive : les années 90 vont de 1990 à 1999. Respecte exactement la logique booléenne exprimée. "
-                "N'ajoute aucune contrainte qu'il n'a pas demandée. "
-                "Utilise les autres outils uniquement pour vérifier l'état réel du serveur "
-                "comme la disponibilité Plex, Radarr, Sonarr ou les téléchargements. "
-                "Ne confonds jamais présence dans le catalogue avec disponibilité dans Plex. "
-                "Quand plusieurs candidats sont retournés, utilise leurs notes et nombres de votes seulement si la demande "
-                "demande une recommandation ou un classement. Si l'utilisateur demande d'éviter les éléments déjà vus, "
-                "vérifie les candidats dans Plex, dans l'ordre utile, jusqu'à en trouver un admissible. "
-                "N'utilise radarr_request_movie que si l'utilisateur a explicitement demandé de télécharger ou ajouter le film. "
-                "Avant cette action, vérifie d'abord Plex puis Radarr afin d'éviter un ajout inutile ou en double. "
-                "Après chaque résultat, décide si une autre vérification est réellement nécessaire. "
-                "Quand la demande est entièrement vérifiée, n'appelle plus d'outil."
+                "Tu administres un serveur multimédia. Réponds dans la langue de l'utilisateur. "
+                "L'intention de recherche et la recherche catalogue ont déjà été traitées de façon structurée. "
+                "Ne rappelle jamais seerr_media_search. Utilise uniquement Plex/Radarr/Sonarr pour vérifier "
+                "l'état frais du serveur. Si avoid_watched est vrai, vérifie dans Plex les candidats utiles "
+                "dans l'ordre fourni. Si download est faux, n'ajoute jamais de média. Si download est vrai, "
+                "vérifie Plex puis Radarr avant tout ajout. french_download ne doit être transmis à Radarr "
+                "que s'il est vrai. Quand la demande est vérifiée, n'appelle plus d'outil."
             )
         },
         {
             "role": "user",
-            "content": question
+            "content": (
+                "Demande : " + question + "\n"
+                "Intent structuré : " + json.dumps(intent, ensure_ascii=False) + "\n"
+                "Recherche catalogue déjà vérifiée : " + json.dumps(preverified, ensure_ascii=False)
+            )
         }
     ]
 
-    results = []
+    results = list(preverified)
 
     print("\n--- Plan agent ---")
 
@@ -95,7 +98,7 @@ def run_agent(question):
             json={
                 "model": MODEL,
                 "messages": messages,
-                "tools": TOOLS,
+                "tools": [radarr.TOOL, radarr.QUEUE_TOOL, radarr.REQUEST_TOOL, sonarr.TOOL, plex.TOOL],
                 "stream": False,
                 "keep_alive": "30m",
                 "options": {
