@@ -1,0 +1,17 @@
+name: jarvis-model-benchmark
+
+services:
+  ollama-bench:
+    image: ollama/ollama:latest
+    container_name: jarvis-model-benchmark-ollama
+    restart: "no"
+    ports:
+      - "127.0.0.1:${BENCH_OLLAMA_PORT:-11435}:11434"
+    volumes:
+      - jarvis_benchmark_ollama:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: 30m
+
+volumes:
+  jarvis_benchmark_ollama:
+    name: jarvis-model-benchmark-ollama
