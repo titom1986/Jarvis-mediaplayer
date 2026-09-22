@@ -62,6 +62,9 @@ def run_agent(question):
                 "Utilise les autres outils uniquement pour vérifier l'état réel du serveur "
                 "comme la disponibilité Plex, Radarr, Sonarr ou les téléchargements. "
                 "Ne confonds jamais présence dans le catalogue avec disponibilité dans Plex. "
+                "Quand plusieurs candidats sont retournés, utilise leurs notes et nombres de votes seulement si la demande "
+                "demande une recommandation ou un classement. Si l'utilisateur demande d'éviter les éléments déjà vus, "
+                "vérifie les candidats dans Plex, dans l'ordre utile, jusqu'à en trouver un admissible. "
                 "Après chaque résultat, décide si une autre vérification est réellement nécessaire. "
                 "Quand la demande est entièrement vérifiée, n'appelle plus d'outil."
             )
