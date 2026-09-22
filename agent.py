@@ -4,6 +4,7 @@ import requests
 import time
 
 from config import OLLAMA_URL, MODEL
+from planner import extract_intent, compile_media_search
 from tools import radarr, sonarr, plex, media_search
 
 
@@ -57,31 +58,56 @@ def _ollama_perf(payload, wall_s):
 def run_agent(question):
     total_started = time.perf_counter()
 
+    intent = extract_intent(question)
+    intent_perf = intent.pop("_perf", {})
+    print("\n[PERF] intent", json.dumps(intent_perf, ensure_ascii=False))
+    compiled_search = compile_media_search(intent)
+
+    preverified = []
+    if compiled_search is not None:
+        search_started = time.perf_counter()
+        result = media_search.media_search(**compiled_search)
+        search_wall = time.perf_counter() - search_started
+        print("\n--- Recherche structurée ---")
+        print("> seerr_media_search(" + str(compiled_search) + ")")
+        print("<", json.dumps(result, ensure_ascii=False))
+        print("[PERF] media_search", json.dumps({
+            "wall_s": round(search_wall, 3),
+            **result.get("_perf", {})
+        }, ensure_ascii=False))
+        preverified.append({
+            "tool": "seerr_media_search",
+            "arguments": compiled_search,
+            "result": result,
+        })
+
     messages = [
         {
             "role": "system",
             "content": (
-                "Tu es un agent multimédia. Comprends la demande puis choisis toi-même les outils nécessaires. "
-                "Ne transforme jamais une préférence en condition plus stricte que celle demandée. "
-                "Pour seerr_media_search : toutes les contraintes cumulatives appartiennent à UN même groupe include ; "
-                "plusieurs groupes include signifient uniquement des alternatives OR explicitement demandées. "
-                "Chaque information appartient à une seule catégorie : personne→people, genre de catalogue→genres, "
-                "thème/concept→keywords, période→dates. Ne duplique jamais une valeur entre catégories. "
-                "Une décennie est inclusive : années 90→1990..1999. "
-                "exclude porte déjà la négation : mets le concept POSITIF dans exclude, par exemple "
-                "« pas dystopique »→exclude keyword « dystopia », jamais « not dystopian ». "
-                "Les résultats de seerr_media_search sont triés par note puis nombre de votes. "
-                "Si l'utilisateur demande d'éviter les médias déjà vus dans Plex, found=false reste un candidat valide, "
-                "found=true/watched=false reste valide, seul found=true/watched=true doit être évité. "
-                "N'ajoute/télécharge un média que si l'utilisateur le demande explicitement. "
-                "Pour un téléchargement français, french=true uniquement si le français est explicitement demandé. "
-                "Après chaque résultat d'outil, décide librement si un autre outil est nécessaire ou si tu peux répondre. "
-                "Réponds dans la langue de l'utilisateur."
+                "Tu administres un serveur multimédia et réponds dans la langue de l'utilisateur. "
+                "La recherche catalogue est déjà vérifiée et ordonnée. Ne rappelle jamais seerr_media_search. "
+                "IMPORTANT pour avoid_watched : Plex sert uniquement à exclure un candidat qui est À LA FOIS "
+                "found=true ET watched=true. Un candidat found=false dans Plex RESTE VALIDE. "
+                "Un candidat found=true et watched=false RESTE VALIDE. "
+                "Teste les candidats dans l'ordre jusqu'au premier valide, puis recommande-le. "
+                "Si download=false, n'appelle jamais Radarr pour ajouter/télécharger. "
+                "Si download=true, vérifie Plex puis Radarr avant tout ajout. "
+                "french_download ne doit être transmis à Radarr que s'il est vrai. "
+                "Quand tu disposes d'un candidat valide, réponds directement : aucun autre outil n'est nécessaire."
             )
         },
-        {"role": "user", "content": question}
+        {
+            "role": "user",
+            "content": (
+                "Demande : " + question + "\n"
+                "Intent structuré : " + json.dumps(intent, ensure_ascii=False) + "\n"
+                "Recherche catalogue déjà vérifiée : " + json.dumps(preverified, ensure_ascii=False)
+            )
+        }
     ]
 
+    results = list(preverified)
     print("\n--- Plan agent ---")
     final_content = ""
     llm_calls = []
@@ -93,7 +119,7 @@ def run_agent(question):
             json={
                 "model": MODEL,
                 "messages": messages,
-                "tools": TOOLS,
+                "tools": [radarr.TOOL, radarr.QUEUE_TOOL, radarr.REQUEST_TOOL, sonarr.TOOL, plex.TOOL],
                 "stream": False,
                 "keep_alive": "30m",
                 "options": {"temperature": 0, "num_predict": 160}
@@ -126,6 +152,7 @@ def run_agent(question):
             print("<", json.dumps(result, ensure_ascii=False))
             print(f"[PERF] tool {name}", json.dumps({"wall_s": round(tool_wall, 3)}, ensure_ascii=False))
 
+            results.append({"tool": name, "arguments": args, "result": result})
             messages.append({
                 "role": "tool",
                 "tool_name": name,
@@ -137,7 +164,7 @@ def run_agent(question):
 
     print("[PERF] total", json.dumps({
         "wall_s": round(time.perf_counter() - total_started, 3),
-        "ollama_calls": len(llm_calls)
+        "ollama_calls": 1 + len(llm_calls)
     }, ensure_ascii=False))
 
     print("\n═══ RÉPONSE ═══\n")
