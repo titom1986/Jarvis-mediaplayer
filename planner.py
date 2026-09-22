@@ -1,5 +1,6 @@
 import json
 import requests
+from time import perf_counter
 
 from config import OLLAMA_URL, MODEL
 
@@ -80,6 +81,7 @@ Retourne uniquement le JSON conforme au schéma."""
 
 
 def extract_intent(question, post=requests.post):
+    started = perf_counter()
     response = post(
         OLLAMA_URL,
         json={
@@ -96,9 +98,19 @@ def extract_intent(question, post=requests.post):
         timeout=180,
     )
     response.raise_for_status()
-    content = response.json()["message"]["content"]
+    payload = response.json()
+    elapsed = perf_counter() - started
+    content = payload["message"]["content"]
     intent = json.loads(content)
     validate_intent(intent)
+    intent["_perf"] = {
+        "wall_s": round(elapsed, 3),
+        "prompt_eval_ms": round((payload.get("prompt_eval_duration") or 0) / 1_000_000, 1),
+        "eval_ms": round((payload.get("eval_duration") or 0) / 1_000_000, 1),
+        "prompt_tokens": payload.get("prompt_eval_count"),
+        "output_tokens": payload.get("eval_count"),
+        "load_ms": round((payload.get("load_duration") or 0) / 1_000_000, 1),
+    }
     return intent
 
 
