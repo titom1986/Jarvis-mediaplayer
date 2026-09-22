@@ -25,7 +25,10 @@ SERVICES = {
             "RADARR_URL",
             "http://127.0.0.1:7878/radarr"
         ),
-        "api_key": os.getenv("RADARR_API_KEY")
+        "api_key": os.getenv("RADARR_API_KEY"),
+        "root_folder": os.getenv("RADARR_ROOT_FOLDER"),
+        "default_profile": os.getenv("RADARR_DEFAULT_PROFILE"),
+        "french_profile": os.getenv("RADARR_FRENCH_PROFILE")
     },
 
     "sonarr": {
