@@ -46,6 +46,12 @@ INTENT_SCHEMA = {
 
 EXTRACT_SYSTEM = """Tu extrais littéralement une intention de recherche multimédia.
 Ne planifie aucun appel d'outil et n'invente aucun critère.
+Chaque contrainte sémantique de la demande doit apparaître UNE SEULE FOIS dans UNE SEULE catégorie,
+la plus spécifique. Les catégories sont mutuellement exclusives : une personne va uniquement dans
+people, un genre uniquement dans genres, un thème/concept uniquement dans keywords et une période
+uniquement dans dates. Ne duplique jamais une même information entre people, genres et keywords.
+Exemple : « science-fiction avec Bruce Willis » => genres=["Science Fiction"],
+people=["Bruce Willis"], keywords=[].
 required contient TOUS les critères cumulatifs demandés.
 forbidden contient les propriétés que l'utilisateur refuse. Les valeurs y sont POSITIVES :
 « pas dystopique » => keyword « dystopia », jamais « not dystopian ».
@@ -78,7 +84,32 @@ def extract_intent(question, post=requests.post):
     )
     response.raise_for_status()
     content = response.json()["message"]["content"]
-    return json.loads(content)
+    intent = json.loads(content)
+    validate_intent(intent)
+    return intent
+
+
+def _criteria_values(criteria):
+    for category in ("people", "genres", "keywords"):
+        for value in criteria.get(category, []):
+            yield category, str(value).strip().casefold()
+
+
+def validate_intent(intent):
+    """Valide uniquement les invariants structurels, sans connaissance métier."""
+    for scope in ("required", "forbidden"):
+        seen = {}
+        for category, value in _criteria_values(intent.get(scope, {})):
+            if not value:
+                continue
+            previous = seen.get(value)
+            if previous and previous != category:
+                raise ValueError(
+                    f"Extraction ambiguë : {value!r} apparaît dans {previous} et {category}"
+                )
+            seen[value] = category
+
+    return intent
 
 
 def compile_media_search(intent):
