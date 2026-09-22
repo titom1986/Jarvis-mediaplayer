@@ -24,7 +24,7 @@ def execute_tool(name, args):
         return radarr.queue_status(args["title"])
 
     if name == "radarr_request_movie":
-        return radarr.request_movie(args["tmdb_id"])
+        return radarr.request_movie(args["tmdb_id"], french=args.get("french", False))
 
     if name == "sonarr_status":
         return sonarr.status(args["title"])
