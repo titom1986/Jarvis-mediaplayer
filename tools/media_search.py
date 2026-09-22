@@ -417,6 +417,10 @@ MEDIA_SEARCH_TOOL = {
             "sont simultanées (AND). Les groupes sont des alternatives (OR). "
             "Crée un nouveau groupe uniquement si la demande exprime une alternative. "
             "include et exclude ont exactement la même structure. "
+            "IMPORTANT : exclude porte déjà la négation. Les valeurs placées dans exclude doivent donc toujours "
+            "nommer positivement la propriété à retirer, sans 'not', 'non', 'pas', 'sans' ou autre négation. "
+            "Exemple : pour exclure les films dystopiques, utilise exclude=[{'keywords':['dystopia']}], "
+            "jamais un keyword comme 'not dystopian'. "
             "Un groupe peut combiner people, genres, keywords et dates et people n'est jamais obligatoire. "
             "people contient les personnes, genres les genres de catalogue, keywords les thèmes/concepts "
             "et dates les périodes. N'ajoute aucun critère non demandé."
@@ -443,7 +447,10 @@ MEDIA_SEARCH_TOOL = {
                             },
                             "keywords": {
                                 "type": "array",
-                                "items": {"type": "string"}
+                                "items": {
+                                    "type": "string",
+                                    "description": "Thème ou concept positif à inclure, sans opérateur logique."
+                                }
                             },
                             "dates": {
                                 "type": "array",
@@ -473,7 +480,11 @@ MEDIA_SEARCH_TOOL = {
                             },
                             "keywords": {
                                 "type": "array",
-                                "items": {"type": "string"}
+                                "description": "Concepts à exclure. Chaque valeur nomme positivement le concept interdit ; ne jamais inclure de négation dans la chaîne.",
+                                "items": {
+                                    "type": "string",
+                                    "description": "Nom positif du concept exclu, par exemple 'dystopia', jamais 'not dystopian'."
+                                }
                             },
                             "dates": {
                                 "type": "array",
