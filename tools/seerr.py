@@ -173,6 +173,7 @@ def discover(
     date_from=None,
     date_to=None,
     sort_by="popularity.desc",
+    exclude_keyword_ids=None,
 ):
     """Interroge l'API Discover de Seerr avec des filtres TMDB natifs."""
     if not SEERR_API_KEY:
@@ -188,6 +189,9 @@ def discover(
 
     if keyword_ids:
         params["keywords"] = ",".join(str(value) for value in keyword_ids)
+
+    if exclude_keyword_ids:
+        params["excludeKeywords"] = ",".join(str(value) for value in exclude_keyword_ids)
 
     if media_type == "movie":
         path = "movies"
