@@ -1,3 +1,4 @@
+import sys
 import json
 import requests
 import time
@@ -174,16 +175,19 @@ if __name__ == "__main__":
     print("Lecture seule")
     print()
 
-    while True:
-        try:
-            question = input("> ").strip()
+    if len(sys.argv) > 1:
+        run_agent(" ".join(sys.argv[1:]).strip())
+    else:
+        while True:
+            try:
+                question = input("> ").strip()
 
-            if question.lower() in {"exit", "quit", "/bye"}:
+                if question.lower() in {"exit", "quit", "/bye"}:
+                    break
+
+                if question:
+                    run_agent(question)
+
+            except KeyboardInterrupt:
+                print()
                 break
-
-            if question:
-                run_agent(question)
-
-        except KeyboardInterrupt:
-            print()
-            break
