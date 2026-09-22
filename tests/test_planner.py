@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import Mock
 
-from planner import compile_media_search, extract_intent
+from planner import compile_media_search, extract_intent, validate_intent
 
 
 EMPTY = {"people": [], "genres": [], "keywords": [], "dates": []}
@@ -56,6 +56,38 @@ class PlannerTests(unittest.TestCase):
         self.assertIsInstance(body["format"], dict)
         self.assertEqual(body["options"]["temperature"], 0)
         self.assertEqual(body["keep_alive"], "30m")
+
+    def test_rejects_duplicate_semantic_classification(self):
+        intent = {
+            "media_type": "movie", "search": True,
+            "required": {
+                "people": ["Bruce Willis"],
+                "genres": ["Science Fiction"],
+                "keywords": ["Bruce Willis"],
+                "dates": [{"from": 1990, "to": 1999}],
+            },
+            "forbidden": EMPTY, "alternatives": [],
+            "recommend_by_rating": True, "avoid_watched": True,
+            "download": False, "french_download": False,
+        }
+        with self.assertRaises(ValueError):
+            validate_intent(intent)
+
+    def test_accepts_exclusive_semantic_classification(self):
+        intent = {
+            "media_type": "movie", "search": True,
+            "required": {
+                "people": ["Bruce Willis"],
+                "genres": ["Science Fiction"],
+                "keywords": [],
+                "dates": [{"from": 1990, "to": 1999}],
+            },
+            "forbidden": {**EMPTY, "keywords": ["dystopia"]},
+            "alternatives": [],
+            "recommend_by_rating": True, "avoid_watched": True,
+            "download": False, "french_download": False,
+        }
+        self.assertIs(validate_intent(intent), intent)
 
 
 if __name__ == "__main__":
