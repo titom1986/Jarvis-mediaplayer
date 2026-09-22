@@ -70,7 +70,7 @@ CASES = [
 
 def post(model, prompt):
     body = json.dumps({"model": model, "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
-                       "tools": [MEDIA_TOOL, PLEX_TOOL], "stream": False, "keep_alive": "30m",
+                       "tools": [MEDIA_TOOL, PLEX_TOOL], "stream": False, "keep_alive": "30m", "think": False,
                        "options": {"temperature": 0, "num_predict": 120}}).encode()
     req = urllib.request.Request(OLLAMA, data=body, headers={"Content-Type": "application/json"})
     started = time.perf_counter()
