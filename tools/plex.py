@@ -3,7 +3,7 @@ import requests
 from config import SERVICES
 
 PLEX_URL = SERVICES["plex"]["url"] or "http://127.0.0.1:32400"
-PLEX_TOKEN = SERVICES["plex"]["api_key"]
+PLEX_TOKEN = SERVICES["plex"]["token"]
 
 
 def status(title):
