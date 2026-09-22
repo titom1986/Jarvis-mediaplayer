@@ -1,8 +1,9 @@
-import os
 import requests
 
-PLEX_URL = os.environ.get("PLEX_URL", "http://127.0.0.1:32400")
-PLEX_TOKEN = os.environ.get("PLEX_TOKEN")
+from config import SERVICES
+
+PLEX_URL = SERVICES["plex"]["url"] or "http://127.0.0.1:32400"
+PLEX_TOKEN = SERVICES["plex"]["api_key"]
 
 
 def status(title):
@@ -38,6 +39,8 @@ def status(title):
                     "ratingKey": item.get("ratingKey"),
                     "library": item.get("librarySectionTitle"),
                     "addedAt": item.get("addedAt"),
+                    "viewCount": item.get("viewCount", 0),
+                    "watched": (item.get("viewCount") or 0) > 0,
                 })
 
         if not results:
