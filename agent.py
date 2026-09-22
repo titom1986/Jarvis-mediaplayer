@@ -43,21 +43,37 @@ def execute_tool(name, args):
     return {"error": f"Outil inconnu : {name}"}
 
 
+def _ollama_perf(payload, wall_s):
+    return {
+        "wall_s": round(wall_s, 3),
+        "load_ms": round((payload.get("load_duration") or 0) / 1_000_000, 1),
+        "prompt_eval_ms": round((payload.get("prompt_eval_duration") or 0) / 1_000_000, 1),
+        "eval_ms": round((payload.get("eval_duration") or 0) / 1_000_000, 1),
+        "prompt_tokens": payload.get("prompt_eval_count"),
+        "output_tokens": payload.get("eval_count"),
+    }
+
+
 def run_agent(question):
-    # Conversation interne du planner.
-    # Il peut appeler des outils, observer leurs résultats,
-    # puis décider d'en appeler d'autres.
+    total_started = time.perf_counter()
+
     intent = extract_intent(question)
+    intent_perf = intent.pop("_perf", {})
+    print("\n[PERF] intent", json.dumps(intent_perf, ensure_ascii=False))
     compiled_search = compile_media_search(intent)
 
-    # Le LLM extrait la sémantique ; Python compile la logique booléenne.
-    # Seerr/Plex/Radarr restent interrogés en temps réel : aucun cache métier.
     preverified = []
     if compiled_search is not None:
+        search_started = time.perf_counter()
         result = media_search.media_search(**compiled_search)
+        search_wall = time.perf_counter() - search_started
         print("\n--- Recherche structurée ---")
         print("> seerr_media_search(" + str(compiled_search) + ")")
         print("<", json.dumps(result, ensure_ascii=False))
+        print("[PERF] media_search", json.dumps({
+            "wall_s": round(search_wall, 3),
+            **result.get("_perf", {})
+        }, ensure_ascii=False))
         preverified.append({
             "tool": "seerr_media_search",
             "arguments": compiled_search,
@@ -68,13 +84,16 @@ def run_agent(question):
         {
             "role": "system",
             "content": (
-                "Tu administres un serveur multimédia. Réponds dans la langue de l'utilisateur. "
-                "L'intention de recherche et la recherche catalogue ont déjà été traitées de façon structurée. "
-                "Ne rappelle jamais seerr_media_search. Utilise uniquement Plex/Radarr/Sonarr pour vérifier "
-                "l'état frais du serveur. Si avoid_watched est vrai, vérifie dans Plex les candidats utiles "
-                "dans l'ordre fourni. Si download est faux, n'ajoute jamais de média. Si download est vrai, "
-                "vérifie Plex puis Radarr avant tout ajout. french_download ne doit être transmis à Radarr "
-                "que s'il est vrai. Quand la demande est vérifiée, n'appelle plus d'outil."
+                "Tu administres un serveur multimédia et réponds dans la langue de l'utilisateur. "
+                "La recherche catalogue est déjà vérifiée et ordonnée. Ne rappelle jamais seerr_media_search. "
+                "IMPORTANT pour avoid_watched : Plex sert uniquement à exclure un candidat qui est À LA FOIS "
+                "found=true ET watched=true. Un candidat found=false dans Plex RESTE VALIDE. "
+                "Un candidat found=true et watched=false RESTE VALIDE. "
+                "Teste les candidats dans l'ordre jusqu'au premier valide, puis recommande-le. "
+                "Si download=false, n'appelle jamais Radarr pour ajouter/télécharger. "
+                "Si download=true, vérifie Plex puis Radarr avant tout ajout. "
+                "french_download ne doit être transmis à Radarr que s'il est vrai. "
+                "Quand tu disposes d'un candidat valide, réponds directement : aucun autre outil n'est nécessaire."
             )
         },
         {
@@ -88,11 +107,12 @@ def run_agent(question):
     ]
 
     results = list(preverified)
-
     print("\n--- Plan agent ---")
+    final_content = ""
+    llm_calls = []
 
-    # Maximum de cycles pour empêcher une boucle infinie.
     for step in range(8):
+        call_started = time.perf_counter()
         response = requests.post(
             OLLAMA_URL,
             json={
@@ -101,94 +121,53 @@ def run_agent(question):
                 "tools": [radarr.TOOL, radarr.QUEUE_TOOL, radarr.REQUEST_TOOL, sonarr.TOOL, plex.TOOL],
                 "stream": False,
                 "keep_alive": "30m",
-                "options": {
-                    "num_predict": 120
-                }
+                "options": {"temperature": 0, "num_predict": 160}
             },
             timeout=180
         )
         response.raise_for_status()
+        payload = response.json()
+        perf = _ollama_perf(payload, time.perf_counter() - call_started)
+        llm_calls.append(perf)
+        print(f"[PERF] agent_llm_{step + 1}", json.dumps(perf, ensure_ascii=False))
 
-        message = response.json()["message"]
+        message = payload["message"]
         calls = message.get("tool_calls", [])
 
-        # Aucun nouvel outil : le planner considère la recherche terminée.
         if not calls:
+            final_content = message.get("content", "").strip()
             break
 
-        # Le modèle doit revoir ses propres appels au tour suivant.
         messages.append(message)
 
         for call in calls:
             name = call["function"]["name"]
             args = call["function"]["arguments"]
-
             print(f"> {name}({args})")
 
+            tool_started = time.perf_counter()
             result = execute_tool(name, args)
-
+            tool_wall = time.perf_counter() - tool_started
             print("<", json.dumps(result, ensure_ascii=False))
+            print(f"[PERF] tool {name}", json.dumps({"wall_s": round(tool_wall, 3)}, ensure_ascii=False))
 
-            results.append({
-                "tool": name,
-                "arguments": args,
-                "result": result
-            })
-
+            results.append({"tool": name, "arguments": args, "result": result})
             messages.append({
                 "role": "tool",
                 "tool_name": name,
                 "content": json.dumps(result, ensure_ascii=False)
             })
 
-    # Aucun outil n'était nécessaire.
-    if not results:
-        synthesis_input = "Aucun résultat d'outil n'était nécessaire."
-    else:
-        synthesis_input = json.dumps(results, ensure_ascii=False)
+    if not final_content:
+        final_content = "Je n'ai pas pu produire une réponse finale vérifiée."
 
-    # Synthèse indépendante : aucun tool disponible ici.
-    synthesis_messages = [
-        {
-            "role": "system",
-            "content": (
-                "Réponds directement en français à la demande de l'utilisateur. "
-                "Pour toute information concernant le serveur multimédia, utilise "
-                "uniquement les résultats vérifiés fournis. "
-                "N'invente aucune information. "
-                "Ne mentionne pas le fonctionnement interne, les outils ou le raisonnement. "
-                "Si les résultats ne permettent pas de conclure sur un point, dis-le clairement. "
-                "Sois concis par défaut."
-            )
-        },
-        {
-            "role": "user",
-            "content": (
-                "Demande : " + question + "\n\n"
-                "Résultats vérifiés :\n" + synthesis_input
-            )
-        }
-    ]
-
-    final_response = requests.post(
-        OLLAMA_URL,
-        json={
-            "model": MODEL,
-            "messages": synthesis_messages,
-            "stream": False,
-            "keep_alive": "30m",
-            "options": {
-                "num_predict": 120
-            }
-        },
-        timeout=180
-    )
-    final_response.raise_for_status()
-
-    content = final_response.json()["message"].get("content", "").strip()
+    print("[PERF] total", json.dumps({
+        "wall_s": round(time.perf_counter() - total_started, 3),
+        "ollama_calls": 1 + len(llm_calls)
+    }, ensure_ascii=False))
 
     print("\n═══ RÉPONSE ═══\n")
-    print(content or "Aucune réponse générée.")
+    print(final_content)
 
 if __name__ == "__main__":
     print("Seed Agent - Qwen3 4B local")
