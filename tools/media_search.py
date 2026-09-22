@@ -208,7 +208,7 @@ def _date_bounds(dates):
     return year_from, year_to
 
 
-def _discover_ids(group, media_type, max_pages=100):
+def _discover_ids(group, media_type, exclude_keyword_ids=None, max_pages=100):
     genre_ids = _resolve_genre_ids(group.get("genres", []), media_type)
     keyword_ids = _resolve_keyword_ids(group.get("keywords", []))
 
@@ -231,6 +231,7 @@ def _discover_ids(group, media_type, max_pages=100):
             keyword_ids=keyword_ids,
             date_from=date_from,
             date_to=date_to,
+            exclude_keyword_ids=exclude_keyword_ids,
         )
 
         if "error" in result:
@@ -280,8 +281,29 @@ def media_search(media_type, include=None, exclude=None):
 
     include_candidates = []
 
+    # Une exclusion composée uniquement de keywords peut être poussée directement
+    # dans TMDB/Seerr Discover. Cela évite de récupérer puis enrichir des milliers
+    # de médias uniquement pour les éliminer ensuite.
+    native_exclude_keyword_ids = []
+    residual_exclude = []
+    for group in exclude:
+        if set(group) <= {"keywords"} and group.get("keywords"):
+            ids = _resolve_keyword_ids(group["keywords"])
+            if ids is not None:
+                native_exclude_keyword_ids.extend(ids)
+                continue
+        residual_exclude.append(group)
+
     for group in include:
-        ids = _group_candidate_ids(group, media_type)
+        people_ids = _person_ids(group.get("people", []), media_type)
+        if people_ids is not None:
+            ids = people_ids
+        else:
+            ids = _discover_ids(
+                group,
+                media_type,
+                exclude_keyword_ids=native_exclude_keyword_ids,
+            )
         include_candidates.append((group, ids))
 
     # OR entre les groupes include.
@@ -293,7 +315,7 @@ def media_search(media_type, include=None, exclude=None):
     # Prépare les intersections people de chaque groupe exclude.
     exclude_people = []
 
-    for group in exclude:
+    for group in residual_exclude:
         ids = _group_candidate_ids(group, media_type)
 
         # Pas de people dans ce groupe = aucune contrainte people.
