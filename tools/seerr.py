@@ -1,9 +1,10 @@
-import os
 import requests
 from urllib.parse import quote
 
-SEERR_URL = os.environ.get("SEERR_URL", "http://127.0.0.1:5055").rstrip("/")
-SEERR_API_KEY = os.environ.get("SEERR_API_KEY")
+from config import SERVICES
+
+SEERR_URL = (SERVICES["seerr"]["url"] or "http://127.0.0.1:5055").rstrip("/")
+SEERR_API_KEY = SERVICES["seerr"]["api_key"]
 
 _PERSON_NAMES = {}
 
