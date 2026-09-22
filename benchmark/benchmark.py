@@ -83,12 +83,26 @@ def norm(x): return str(x or "").strip().casefold()
 def score(expect, msg):
     calls = msg.get("tool_calls") or []
     if not calls: return False, "no tool call"
-    call = calls[0]["function"]; args = call.get("arguments") or {}
+    call = calls[0].get("function") or {}
+    raw_args = call.get("arguments")
+    if isinstance(raw_args, str):
+        try:
+            args = json.loads(raw_args)
+        except json.JSONDecodeError:
+            return False, "arguments are invalid JSON string: " + repr(raw_args)
+    elif isinstance(raw_args, dict):
+        args = raw_args
+    else:
+        return False, "arguments are not an object: " + repr(raw_args)
     if call.get("name") != expect["tool"]: return False, "wrong tool"
     if expect["tool"] == "plex_status":
         return norm(args.get("title")) == expect["title"], str(args)
     if args.get("media_type") != expect.get("media_type"): return False, "wrong media_type"
     inc=args.get("include") or []; exc=args.get("exclude") or []
+    if not isinstance(inc, list): return False, "include is not an array: " + repr(inc)
+    if not isinstance(exc, list): return False, "exclude is not an array: " + repr(exc)
+    if any(not isinstance(g, dict) for g in inc): return False, "include contains non-object groups: " + repr(inc)
+    if any(not isinstance(g, dict) for g in exc): return False, "exclude contains non-object groups: " + repr(exc)
     if "or_people" in expect:
         got=[norm(p) for g in inc for p in g.get("people",[])]
         ok=len(inc)>=2 and all(p in got for p in expect["or_people"])
