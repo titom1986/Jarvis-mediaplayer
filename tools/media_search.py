@@ -142,14 +142,130 @@ def _match_metadata(group, media):
     return True
 
 
+def _resolve_genre_ids(names, media_type):
+    if not names:
+        return []
+
+    available = {
+        _norm(item.get("name")): item.get("id")
+        for item in seerr.genres(media_type)
+        if item.get("id")
+    }
+
+    ids = []
+    for name in names:
+        genre_id = available.get(_norm(name))
+        if genre_id is None:
+            return None
+        ids.append(genre_id)
+
+    return ids
+
+
+def _resolve_keyword_ids(names):
+    ids = []
+
+    for name in names or []:
+        result = seerr.search_keyword(name)
+
+        if "error" in result:
+            return None
+
+        wanted = _norm(name)
+        exact = next(
+            (
+                item
+                for item in result.get("results", [])
+                if _norm(item.get("name")) == wanted
+            ),
+            None,
+        )
+
+        if not exact or not exact.get("id"):
+            return None
+
+        ids.append(exact["id"])
+
+    return ids
+
+
+def _date_bounds(dates):
+    year_from = None
+    year_to = None
+
+    for condition in dates or []:
+        if not isinstance(condition, dict):
+            continue
+
+        if condition.get("from") is not None:
+            value = int(condition["from"])
+            year_from = max(year_from, value) if year_from is not None else value
+
+        if condition.get("to") is not None:
+            value = int(condition["to"])
+            year_to = min(year_to, value) if year_to is not None else value
+
+    return year_from, year_to
+
+
+def _discover_ids(group, media_type, max_pages=100):
+    genre_ids = _resolve_genre_ids(group.get("genres", []), media_type)
+    keyword_ids = _resolve_keyword_ids(group.get("keywords", []))
+
+    if genre_ids is None or keyword_ids is None:
+        return set()
+
+    year_from, year_to = _date_bounds(group.get("dates", []))
+
+    date_from = f"{year_from}-01-01" if year_from is not None else None
+    date_to = f"{year_to}-12-31" if year_to is not None else None
+
+    ids = set()
+    page = 1
+
+    while page <= max_pages:
+        result = seerr.discover(
+            media_type,
+            page=page,
+            genre_ids=genre_ids,
+            keyword_ids=keyword_ids,
+            date_from=date_from,
+            date_to=date_to,
+        )
+
+        if "error" in result:
+            break
+
+        ids.update(
+            item["id"]
+            for item in result.get("results", [])
+            if item.get("id")
+        )
+
+        total_pages = min(
+            int(result.get("totalPages") or result.get("total_pages") or 1),
+            max_pages,
+        )
+
+        if page >= total_pages:
+            break
+
+        page += 1
+
+    return ids
+
+
 def _group_candidate_ids(group, media_type):
     """
-    Point d'entrée d'un groupe par ses personnes.
+    Une personne est une optimisation de sélection, pas une obligation.
+    Sans people, Seerr Discover construit l'ensemble de candidats.
     """
-    return _person_ids(
-        group.get("people", []),
-        media_type
-    )
+    people_ids = _person_ids(group.get("people", []), media_type)
+
+    if people_ids is not None:
+        return people_ids
+
+    return _discover_ids(group, media_type)
 
 
 def media_search(media_type, include=None, exclude=None):
@@ -162,21 +278,10 @@ def media_search(media_type, include=None, exclude=None):
     if not include:
         return {"error": "include doit contenir au moins un groupe"}
 
-    # V1 : chaque groupe include doit avoir au moins une personne,
-    # afin d'obtenir un ensemble fini de candidats depuis Seerr.
     include_candidates = []
 
     for group in include:
         ids = _group_candidate_ids(group, media_type)
-
-        if ids is None:
-            return {
-                "error": (
-                    "Chaque groupe include doit actuellement contenir "
-                    "au moins une personne."
-                )
-            }
-
         include_candidates.append((group, ids))
 
     # OR entre les groupes include.
@@ -240,6 +345,8 @@ def media_search(media_type, include=None, exclude=None):
                 "releaseDate": media.get("releaseDate"),
                 "genres": media.get("genres", []),
                 "keywords": media.get("keywords", []),
+                "rating": media.get("rating"),
+                "voteCount": media.get("voteCount"),
             }
 
         except Exception:
@@ -261,7 +368,10 @@ def media_search(media_type, include=None, exclude=None):
                 matches.append(result)
 
     matches.sort(
-        key=lambda x: x.get("releaseDate") or "",
+        key=lambda x: (
+            x.get("rating") or 0,
+            x.get("voteCount") or 0,
+        ),
         reverse=True
     )
 
@@ -281,11 +391,13 @@ MEDIA_SEARCH_TOOL = {
         "name": "seerr_media_search",
         "description": (
             "Recherche des films ou séries selon des groupes de critères. "
-            "Toutes les conditions d'un groupe sont reliées par AND. "
-            "Les groupes sont reliés par OR. "
+            "Toutes les contraintes people, genres, keywords et dates d'un même groupe "
+            "sont simultanées (AND). Les groupes sont des alternatives (OR). "
+            "Crée un nouveau groupe uniquement si la demande exprime une alternative. "
             "include et exclude ont exactement la même structure. "
-            "Un groupe peut combiner people, genres, keywords et dates. "
-            "N'ajoute aucun critère non demandé."
+            "Un groupe peut combiner people, genres, keywords et dates et people n'est jamais obligatoire. "
+            "people contient les personnes, genres les genres de catalogue, keywords les thèmes/concepts "
+            "et dates les périodes. N'ajoute aucun critère non demandé."
         ),
         "parameters": {
             "type": "object",
