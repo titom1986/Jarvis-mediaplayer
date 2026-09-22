@@ -1,52 +1,40 @@
 # JARVIS model benchmark
 
-Isolated Ollama instance for comparing small local models without touching the existing JARVIS/Ollama installation.
+Instance Ollama isolée pour comparer de petits modèles sans toucher au JARVIS/Ollama existant.
 
-## Isolation
+- port benchmark : 127.0.0.1:11435
+- volume dédié
+- aucun montage Plex/Seerr/Radarr/Sonarr
+- aucun accès au Docker socket
+- aucun host networking
 
-- separate Compose project: `jarvis-model-benchmark`
-- separate container: `jarvis-model-benchmark-ollama`
-- separate named model volume: `jarvis-model-benchmark-ollama`
-- loopback-only host port: `127.0.0.1:11435`
-- no mounts from Plex, Seerr, Radarr, Sonarr or the media library
-- no `network_mode: host`
-- no `privileged`
-- no Docker socket mount
-- `restart: "no"`
-
-The existing Ollama on port 11434 is therefore left untouched.
-
-## Start
+## Démarrage (Seedhost legacy Compose)
 
 ```bash
 cd ~/seed-agent/benchmark
-docker compose up -d
+docker-compose up -d
 ```
 
-Check:
+## Télécharger les modèles
 
 ```bash
-curl http://127.0.0.1:11435/api/version
+while read -r model; do docker-compose exec ollama-bench ollama pull "$model"; done < models.txt
 ```
 
-## Pull benchmark models
+## Benchmark
+
+Le harness n'appelle aucun vrai service média. Il teste uniquement la compréhension et le tool calling avec des schémas déterministes.
 
 ```bash
-while read -r model; do
-  docker compose exec ollama-bench ollama pull "$model"
-done < models.txt
+python3 benchmark.py
 ```
 
-## Stop
+Colonnes : modèle, scénario, succès (0/1), temps total, tokens prompt, tokens générés, tokens/s.
+
+## Arrêt
 
 ```bash
-docker compose down
+docker-compose down
 ```
 
-Models remain in the dedicated benchmark volume. To remove that volume too:
-
-```bash
-docker compose down -v
-```
-
-Do not run `down -v` unless the downloaded benchmark models should be deleted.
+Le volume des modèles est conservé. `docker-compose down -v` le supprime aussi.
