@@ -1,0 +1,4 @@
+qwen3:1.7b
+granite3.3:2b
+phi4-mini:3.8b
+ministral-3:3b
