@@ -58,7 +58,20 @@ forbidden contient les propriétés que l'utilisateur refuse. Les valeurs y sont
 alternatives est utilisé UNIQUEMENT si l'utilisateur formule explicitement des branches avec
 « soit/ou/or ». Chaque branche est un ensemble cumulatif de critères.
 people = personnes. genres = genres de catalogue en anglais. keywords = thèmes/concepts de
-métadonnées en anglais. dates = bornes inclusives ; années 90 => 1990..1999.
+métadonnées en anglais. dates = bornes temporelles inclusives. Une décennie doit toujours devenir une borne complète :
+« années 90 » => [{"from":1990,"to":1999}], « années 2000 » => [{"from":2000,"to":2009}].
+Ne perds jamais une contrainte de temps exprimée par l'utilisateur.
+
+Exemples de classification (exemples de forme, pas de valeurs à recopier) :
+- « une comédie avec Tom Hanks des années 80 » :
+  required.people=["Tom Hanks"], required.genres=["Comedy"],
+  required.dates=[{"from":1980,"to":1989}], required.keywords=[].
+- « un thriller après 2010 sans zombies » :
+  required.genres=["Thriller"], required.dates=[{"from":2010,"to":null}],
+  forbidden.keywords=["zombie"].
+- « soit un western avec Clint Eastwood, soit une comédie avec Jim Carrey » :
+  alternatives contient exactement deux groupes ; required reste vide.
+
 recommend_by_rating n'est vrai que si la note doit servir à choisir/classer.
 avoid_watched n'est vrai que si les éléments déjà vus doivent être évités.
 download n'est vrai que sur demande explicite d'ajout/téléchargement.
