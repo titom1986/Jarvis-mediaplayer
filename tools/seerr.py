@@ -140,6 +140,7 @@ def genres(media_type):
     r = requests.get(
         f"{SEERR_URL}/api/v1/genres/{media_type}",
         headers={"X-Api-Key": SEERR_API_KEY},
+        params={"language": "en"},
         timeout=15,
     )
     r.raise_for_status()
