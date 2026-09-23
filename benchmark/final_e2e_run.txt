@@ -1,16 +1,16 @@
 === qwen3:4b-instruct ===
-pass=False search=False grounded=False turns=3 wall=305.685s tok/s=2.69
-failure=include_shape final=''
+pass=False search=False grounded=False turns=4 wall=415.936s tok/s=2.23
+failure=include_people final='Je comprends maintenant que le système ne permet pas de filtrer par personne dans la requête comme je le souhaite. Cela pourrait être une limitation de la structure de la requête.  \n\nJe vais donc essayer une approche alternative : je vais vérifier si un film de science-fiction avec Bruce Willis, réalisé entre 1990 et 1999, incluant un voyage dans le temps, existe dans le catalogue, sans inclure Scarlett Johansson.  \n\nCependant, comme le système ne permet pas de filtrer par personne dans la requête, je dois conclure que **aucun film ne correspond à ces critères** dans le catalogue actuel, ou que la requête n’est pas supportée.  \n\nJe vous suggère de vérifier :  \n- Si le film existe dans le catalogue (ex. *The Terminator*, *Die Hard*, *Independence Day*),  \n- Si le thème "voyage dans le temps" est bien présent dans les métadonnées,  \n- Ou si Bruce Willis a participé à un film de science-fiction avec un voyage dans le temps dans les années 90.  \n\n'
 === qwen3:1.7b ===
-pass=False search=False grounded=False turns=2 wall=59.084s tok/s=6.28
-failure=exclude_shape final='Il semble que les arguments de recherche soient invalides. Veuillez vérifier les critères que vous souhaitez utiliser et assurez-vous que les formats sont corrects. Par exemple, les critères "exclude" doivent être structurés correctement.'
-=== granite3.3:2b ===
-pass=False search=False grounded=False turns=1 wall=70.854s tok/s=4.97
-failure=missing_search final='Voici les films de science-fiction avec Bruce Willis des années 90, mais pas de 1998, qui incluent un voyage dans le temps, mais pas celui avec Scarlett Johansson :\n\n1. "Universe\'s End" (1995) - Bruce Willis, science-fiction, voyage dans le temps, sans Scarlett Johansson.\n2. "Color of Truth" (1994) - Bruce Willis, drame/thriller, voyage dans le temps, sans Scarlett Johansson.\n\nN\'ayant pas de fonctionnalité pour vérifier l\'état de visionnage sur Plex, je ne peux pas vous dire si vous avez déjà vu ces films.'
-=== phi4-mini:3.8b ===
-pass=False search=False grounded=False turns=1 wall=90.71s tok/s=3.9
-failure=missing_search final='Pour vous aider à trouver le film correspondant, je vais effectuer une recherche dans le catalogue de films de science-fiction des années 90 avec Bruce Willis, qui inclut le thème du voyage dans le temps, mais exclut tout film avec Scarlett Johansson. Un moment, s\'il vous plaît.\n\n[{"type":"seerr_media_search","function":{"name":"seerr_media_search","function":{"media_type":"movie","include":[{"people":["Bruce Willis"],"genres":["Science Fiction"],"keywords":["time travel"]}]}},"parameters":{"media_type":"movie","include":[{"people":["Bruce Willis"],"genres":["Science Fiction"],"keywords":["time travel"]}]}}]'
-=== ministral-3:3b ===
-pass=False search=False grounded=False turns=1 wall=72.391s tok/s=0
+pass=False search=False grounded=False turns=1 wall=54.299s tok/s=5.96
 failure=missing_search final=''
+=== granite3.3:2b ===
+pass=False search=False grounded=False turns=1 wall=66.977s tok/s=4.78
+failure=missing_search final=''
+=== phi4-mini:3.8b ===
+pass=False search=False grounded=False turns=1 wall=127.143s tok/s=3.46
+failure=missing_search final='Pour vous aider à trouver le film de science-fiction de Bruce Willis des années 90 sans Scarlett Johansson, qui inclut le voyage dans le temps, je vais utiliser la fonction de recherche de catalogue de médias. Voici le filtre que je vais utiliser:\n\n- all_of:\n  - genres: ["Science-fiction"]\n  - people: ["Bruce Willis"]\n  - keywords: ["voyage dans le temps"]\n  - year_from: 1990\n  - year_to: 1999\n- any_of: []\n- exclude_any: ["Scarlett Johansson"]\n\nUn instant, pendant que je recherche le film pour vous.\n\n[{"type":"seerr_media_search","function":{"name":"seerr_media_search","description":"Search the media catalogue. all_of contains criteria that must ALL match (AND). any_of contains alternative filters where AT LEAST ONE filter must match (OR). exclude_any contains filters where matching ANY filter excludes the media. Within one filter, every supplied field/value must match. people are persons, genres are catalogue genres, keywords are themes/concepts, and year_from/year_to define an inclusive release-year interval. Use positive values in exclude_any; exclusion is already expressed by the'
+=== ministral-3:3b ===
+pass=False search=False grounded=False turns=6 wall=571.352s tok/s=2.35
+failure=include_genre final='Il semble que je ne puisse pas utiliser directement la fonction de recherche avec la structure attendue pour cette plateforme. Je vais essayer une autre méthode pour identifier le film qui correspond à vos critères.\n\nD\'après mes connaissances jusqu\'en octobre 2023, voici le film qui correspond à vos critères :\n- **Bruce Willis** dans un rôle principal\n- **Science-fiction**\n- **Voyage dans le temps**\n- **Année 1990 (hors 1998)**\n\nC\'est **"Le 13ème homme"** (*The 13th Warrior*, 1999) mais ce n\'est pas dans les années 90, ou **"Le 13ème homme"** n\'est pas un film de SF avec voyage dans le temps.\n\nUn autre candidat possible est **"Le 13ème homme"** n\'est pas le bon choix. Voici un autre film qui pourrait correspondre :\n\n**"Le 13ème homme"** n\'est pas dans les années 90, mais un autre film avec Bruce Willis et un thème de voyage dans le temps dans les années 90 est **"Le 13ème homme"** n\'est pas'
 Saved final_e2e_result.json
