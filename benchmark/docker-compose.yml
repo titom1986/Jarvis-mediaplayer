@@ -8,9 +8,7 @@ services:
     ports:
       - "127.0.0.1:${BENCH_OLLAMA_PORT:-11435}:11434"
     volumes:
-      - jarvis_benchmark_ollama:/root/.ollama
+      - ${BENCH_OLLAMA_DATA:-/home/titom/data/jarvis-benchmark/ollama}:/root/.ollama
     environment:
       OLLAMA_KEEP_ALIVE: 30m
 
-volumes:
-  jarvis_benchmark_ollama:
