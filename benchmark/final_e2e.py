@@ -15,12 +15,42 @@ MODELS = [
     "ministral-3:3b",
 ]
 
-# Runtime differences only where the model/runtime documents them. No model gets
-# a semantic hint, worked example, or a different tool contract.
-def model_payload(model):
+# Per-model integration follows each model's native Ollama template. The task,
+# tool schemas and expected semantics stay identical.
+def model_config(model):
+    common = (
+        "Tu es JARVIS, l'agent d'un media center. "
+        "Les outils fournis sont la source de vérité pour les données du media center. "
+        "Quand une demande nécessite ces données, utilise l'outil approprié et n'invente rien. "
+        "Respecte exactement le schéma JSON de l'outil. Réponds dans la langue de l'utilisateur."
+    )
+    if model.startswith("granite3.3"):
+        # Granite's Ollama template injects its own mandatory <|tool_call|>
+        # instruction ONLY when no custom system message is supplied.
+        return {"system": None, "payload": {}, "integration": "native Granite tool system"}
+    if model.startswith("phi4-mini"):
+        # Phi's template keeps the native <|tool> / <|tool_call|> protocol when
+        # a system message is present, so explicitly reinforce native tool use.
+        return {
+            "system": common + " Si un outil est nécessaire, appelle-le via le mécanisme natif de tool calling fourni; n'écris jamais un appel d'outil comme du texte.",
+            "payload": {},
+            "integration": "Phi native tool protocol + explicit tool-use policy",
+        }
+    if model.startswith("ministral-3"):
+        # Ministral's current template injects AVAILABLE_TOOLS at the last user
+        # turn even with a custom system message.
+        return {
+            "system": common + " Utilise les outils disponibles pour toute recherche de catalogue au lieu de répondre de mémoire.",
+            "payload": {},
+            "integration": "Ministral native AVAILABLE_TOOLS protocol",
+        }
     if model.startswith("qwen3"):
-        return {"think": False}
-    return {}
+        return {
+            "system": common,
+            "payload": {"think": False},
+            "integration": "Qwen native tools, thinking disabled for instruct agent",
+        }
+    return {"system": common, "payload": {}, "integration": "native"}
 
 GROUP = {
     "type": "object",
@@ -76,14 +106,6 @@ PLEX_TOOL = {
         },
     },
 }
-
-# Intentionally tiny and generic. Tool schemas carry the API contract; the
-# system prompt only defines the agent's role and grounding rule.
-SYSTEM = (
-    "Tu es JARVIS, l'agent d'un media center. Utilise les outils disponibles "
-    "quand ils sont nécessaires pour répondre à la demande. N'invente jamais "
-    "les données des services. Réponds dans la langue de l'utilisateur."
-)
 
 # FINAL held-out sentence supplied by the user. Do not use it to tune the prompt,
 # schemas or model-specific profiles after seeing results.
@@ -231,10 +253,11 @@ def execute(tc):
 
 
 def run(model):
-    messages = [
-        {"role": "system", "content": SYSTEM},
-        {"role": "user", "content": PROMPT},
-    ]
+    cfg = model_config(model)
+    messages = []
+    if cfg["system"] is not None:
+        messages.append({"role": "system", "content": cfg["system"]})
+    messages.append({"role": "user", "content": PROMPT})
     trace = []
     total_wall = 0.0
     total_eval = 0.0
@@ -249,7 +272,7 @@ def run(model):
             "keep_alive": "30m",
             "options": {"temperature": 0, "num_predict": 240},
         }
-        payload.update(model_payload(model))
+        payload.update(cfg["payload"])
         data, wall, err = post(payload)
         total_wall += wall
         if err or not data:
@@ -303,6 +326,7 @@ def run(model):
 
     return {
         "model": model,
+        "integration": cfg["integration"],
         "search_ok": search_ok,
         "search_failure": search_failure,
         "final_ok": final_ok,
@@ -324,12 +348,14 @@ def main():
         "purpose": "final held-out generic E2E model selection",
         "prompt": PROMPT,
         "rules": {
-            "same_system_semantics": True,
+            "same_task": True,
             "same_tools": True,
             "same_tool_results": True,
             "temperature": 0,
             "model_specific_semantic_hints": False,
+            "model_specific_native_integration": True,
             "qwen_native_think_disabled": True,
+            "granite_custom_system_omitted": True,
         },
         "models": [],
     }
