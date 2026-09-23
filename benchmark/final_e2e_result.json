@@ -1,0 +1,292 @@
+{
+  "purpose": "final held-out generic E2E model selection",
+  "prompt": "Je veux un film de sf de Bruce Willis des années 90 mais pas de 98 avec du voyage dans le temps mais sans Scarlett Johansson",
+  "rules": {
+    "same_system_semantics": true,
+    "same_tools": true,
+    "same_tool_results": true,
+    "temperature": 0,
+    "model_specific_semantic_hints": false,
+    "qwen_native_think_disabled": true
+  },
+  "models": [
+    {
+      "model": "qwen3:4b-instruct",
+      "search_ok": false,
+      "search_failure": "include_shape",
+      "final_ok": false,
+      "grounded": false,
+      "unnecessary_plex_calls": 0,
+      "turns": 3,
+      "wall_s": 305.685,
+      "output_tokens": 327,
+      "tok_s": 2.69,
+      "pass": false,
+      "final": "",
+      "trace": [
+        {
+          "turn": 1,
+          "wall_s": 92.421,
+          "done_reason": "stop",
+          "eval_count": 109,
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "seerr_media_search",
+              "arguments": {
+                "media_type": "movie",
+                "include": [
+                  {
+                    "genres": [
+                      "science fiction"
+                    ]
+                  },
+                  {
+                    "people": [
+                      "Bruce Willis"
+                    ]
+                  },
+                  {
+                    "dates": [
+                      {
+                        "from": 1990,
+                        "to": 1999
+                      }
+                    ]
+                  },
+                  {
+                    "keywords": [
+                      "time travel"
+                    ]
+                  }
+                ],
+                "exclude": [
+                  {
+                    "people": [
+                      "Scarlett Johansson"
+                    ]
+                  },
+                  {
+                    "dates": [
+                      {
+                        "from": 1998,
+                        "to": 1998
+                      }
+                    ]
+                  }
+                ]
+              },
+              "result": {
+                "error": "invalid search arguments",
+                "detail": "include_shape"
+              }
+            }
+          ]
+        },
+        {
+          "turn": 2,
+          "wall_s": 92.742,
+          "done_reason": "stop",
+          "eval_count": 218,
+          "content": "Il semble y avoir une erreur dans la structure de la requête. Je vais réajuster la requête pour qu'elle soit correcte et bien formée.\n\nCela devrait être :\n\n- Un film de science-fiction\n- Avec Bruce Willis\n- Des années 90 (1990-1999), mais pas en 1998\n- Contenant un élément de voyage dans le temps\n- Sans Scarlett Johansson\n\nJe vais reformuler la requête pour qu'elle soit valide.  \n\n",
+          "tool_calls": [
+            {
+              "name": "seerr_media_search",
+              "arguments": {
+                "media_type": "movie",
+                "include": [
+                  {
+                    "genres": [
+                      "science fiction"
+                    ]
+                  },
+                  {
+                    "people": [
+                      "Bruce Willis"
+                    ]
+                  },
+                  {
+                    "dates": [
+                      {
+                        "from": 1990,
+                        "to": 1999
+                      }
+                    ]
+                  },
+                  {
+                    "keywords": [
+                      "time travel"
+                    ]
+                  }
+                ],
+                "exclude": [
+                  {
+                    "people": [
+                      "Scarlett Johansson"
+                    ]
+                  },
+                  {
+                    "dates": [
+                      {
+                        "from": 1998,
+                        "to": 1998
+                      }
+                    ]
+                  }
+                ]
+              },
+              "result": {
+                "error": "invalid search arguments",
+                "detail": "include_shape"
+              }
+            }
+          ]
+        },
+        {
+          "turn": 3,
+          "wall_s": 120.522,
+          "error": "HTTP 500: {\"error\":\"llama-server returned invalid tool call arguments for \\\"seerr_media_search\\\": unexpected end of JSON input\"}"
+        }
+      ]
+    },
+    {
+      "model": "qwen3:1.7b",
+      "search_ok": false,
+      "search_failure": "exclude_shape",
+      "final_ok": false,
+      "grounded": false,
+      "unnecessary_plex_calls": 0,
+      "turns": 2,
+      "wall_s": 59.084,
+      "output_tokens": 149,
+      "tok_s": 6.28,
+      "pass": false,
+      "final": "Il semble que les arguments de recherche soient invalides. Veuillez vérifier les critères que vous souhaitez utiliser et assurez-vous que les formats sont corrects. Par exemple, les critères \"exclude\" doivent être structurés correctement.",
+      "trace": [
+        {
+          "turn": 1,
+          "wall_s": 45.321,
+          "done_reason": "stop",
+          "eval_count": 96,
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "seerr_media_search",
+              "arguments": {
+                "include": [
+                  {
+                    "dates": {
+                      "from": 1990,
+                      "to": 1999
+                    },
+                    "exclude": [
+                      {
+                        "dates": {
+                          "from": 1998
+                        },
+                        "people": [
+                          "Scarlett Johansson"
+                        ]
+                      }
+                    ],
+                    "genres": [
+                      "SF"
+                    ],
+                    "keywords": [
+                      "voyage dans le temps"
+                    ],
+                    "people": [
+                      "Bruce Willis"
+                    ]
+                  }
+                ],
+                "media_type": "movie"
+              },
+              "result": {
+                "error": "invalid search arguments",
+                "detail": "exclude_shape"
+              }
+            }
+          ]
+        },
+        {
+          "turn": 2,
+          "wall_s": 13.763,
+          "done_reason": "stop",
+          "eval_count": 53,
+          "content": "Il semble que les arguments de recherche soient invalides. Veuillez vérifier les critères que vous souhaitez utiliser et assurez-vous que les formats sont corrects. Par exemple, les critères \"exclude\" doivent être structurés correctement.",
+          "tool_calls": []
+        }
+      ]
+    },
+    {
+      "model": "granite3.3:2b",
+      "search_ok": false,
+      "search_failure": "missing_search",
+      "final_ok": false,
+      "grounded": false,
+      "unnecessary_plex_calls": 0,
+      "turns": 1,
+      "wall_s": 70.854,
+      "output_tokens": 191,
+      "tok_s": 4.97,
+      "pass": false,
+      "final": "Voici les films de science-fiction avec Bruce Willis des années 90, mais pas de 1998, qui incluent un voyage dans le temps, mais pas celui avec Scarlett Johansson :\n\n1. \"Universe's End\" (1995) - Bruce Willis, science-fiction, voyage dans le temps, sans Scarlett Johansson.\n2. \"Color of Truth\" (1994) - Bruce Willis, drame/thriller, voyage dans le temps, sans Scarlett Johansson.\n\nN'ayant pas de fonctionnalité pour vérifier l'état de visionnage sur Plex, je ne peux pas vous dire si vous avez déjà vu ces films.",
+      "trace": [
+        {
+          "turn": 1,
+          "wall_s": 70.854,
+          "done_reason": "stop",
+          "eval_count": 191,
+          "content": "Voici les films de science-fiction avec Bruce Willis des années 90, mais pas de 1998, qui incluent un voyage dans le temps, mais pas celui avec Scarlett Johansson :\n\n1. \"Universe's End\" (1995) - Bruce Willis, science-fiction, voyage dans le temps, sans Scarlett Johansson.\n2. \"Color of Truth\" (1994) - Bruce Willis, drame/thriller, voyage dans le temps, sans Scarlett Johansson.\n\nN'ayant pas de fonctionnalité pour vérifier l'état de visionnage sur Plex, je ne peux pas vous dire si vous avez déjà vu ces films.",
+          "tool_calls": []
+        }
+      ]
+    },
+    {
+      "model": "phi4-mini:3.8b",
+      "search_ok": false,
+      "search_failure": "missing_search",
+      "final_ok": false,
+      "grounded": false,
+      "unnecessary_plex_calls": 0,
+      "turns": 1,
+      "wall_s": 90.71,
+      "output_tokens": 137,
+      "tok_s": 3.9,
+      "pass": false,
+      "final": "Pour vous aider à trouver le film correspondant, je vais effectuer une recherche dans le catalogue de films de science-fiction des années 90 avec Bruce Willis, qui inclut le thème du voyage dans le temps, mais exclut tout film avec Scarlett Johansson. Un moment, s'il vous plaît.\n\n[{\"type\":\"seerr_media_search\",\"function\":{\"name\":\"seerr_media_search\",\"function\":{\"media_type\":\"movie\",\"include\":[{\"people\":[\"Bruce Willis\"],\"genres\":[\"Science Fiction\"],\"keywords\":[\"time travel\"]}]}},\"parameters\":{\"media_type\":\"movie\",\"include\":[{\"people\":[\"Bruce Willis\"],\"genres\":[\"Science Fiction\"],\"keywords\":[\"time travel\"]}]}}]",
+      "trace": [
+        {
+          "turn": 1,
+          "wall_s": 90.71,
+          "done_reason": "stop",
+          "eval_count": 137,
+          "content": "Pour vous aider à trouver le film correspondant, je vais effectuer une recherche dans le catalogue de films de science-fiction des années 90 avec Bruce Willis, qui inclut le thème du voyage dans le temps, mais exclut tout film avec Scarlett Johansson. Un moment, s'il vous plaît.\n\n[{\"type\":\"seerr_media_search\",\"function\":{\"name\":\"seerr_media_search\",\"function\":{\"media_type\":\"movie\",\"include\":[{\"people\":[\"Bruce Willis\"],\"genres\":[\"Science Fiction\"],\"keywords\":[\"time travel\"]}]}},\"parameters\":{\"media_type\":\"movie\",\"include\":[{\"people\":[\"Bruce Willis\"],\"genres\":[\"Science Fiction\"],\"keywords\":[\"time travel\"]}]}}]",
+          "tool_calls": []
+        }
+      ]
+    },
+    {
+      "model": "ministral-3:3b",
+      "search_ok": false,
+      "search_failure": "missing_search",
+      "final_ok": false,
+      "grounded": false,
+      "unnecessary_plex_calls": 0,
+      "turns": 1,
+      "wall_s": 72.391,
+      "output_tokens": 0,
+      "tok_s": 0,
+      "pass": false,
+      "final": "",
+      "trace": [
+        {
+          "turn": 1,
+          "wall_s": 72.391,
+          "error": "HTTP 500: {\"error\":\"invalid character '}' after array element\"}"
+        }
+      ]
+    }
+  ]
+}
