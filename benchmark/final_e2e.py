@@ -18,54 +18,51 @@ MODELS = [
 # Per-model integration follows each model's native Ollama template. The task,
 # tool schemas and expected semantics stay identical.
 def model_config(model):
-    common = (
-        "Tu es JARVIS, l'agent d'un media center. "
-        "Les outils fournis sont la source de vérité pour les données du media center. "
-        "Quand une demande nécessite ces données, utilise l'outil approprié et n'invente rien. "
-        "Respecte exactement le schéma JSON de l'outil. Réponds dans la langue de l'utilisateur."
+    grounding = (
+        "Tu es JARVIS, l'agent d'un media center. Les outils fournis sont la source "
+        "de vérité pour les données du media center. Utilise-les lorsque la demande "
+        "nécessite ces données et n'invente rien. Réponds dans la langue de l'utilisateur."
     )
     if model.startswith("granite3.3"):
-        # Granite's Ollama template injects its own mandatory <|tool_call|>
-        # instruction ONLY when no custom system message is supplied.
-        return {"system": None, "payload": {}, "integration": "native Granite tool system"}
-    if model.startswith("phi4-mini"):
-        # Phi's template keeps the native <|tool> / <|tool_call|> protocol when
-        # a system message is present, so explicitly reinforce native tool use.
         return {
-            "system": common + " Si un outil est nécessaire, appelle-le via le mécanisme natif de tool calling fourni; n'écris jamais un appel d'outil comme du texte.",
+            "system": None,
+            "prefix": [],
             "payload": {},
-            "integration": "Phi native tool protocol + explicit tool-use policy",
+            "integration": "Granite native default tool system",
+        }
+    if model.startswith("phi4-mini"):
+        return {
+            "system": None,
+            "prefix": [],
+            "payload": {},
+            "integration": "Phi native tool system",
         }
     if model.startswith("ministral-3"):
-        # Ministral's current template injects AVAILABLE_TOOLS at the last user
-        # turn even with a custom system message.
         return {
-            "system": common + " Utilise les outils disponibles pour toute recherche de catalogue au lieu de répondre de mémoire.",
+            "system": None,
+            "prefix": [],
             "payload": {},
-            "integration": "Ministral native AVAILABLE_TOOLS protocol",
+            "integration": "Ministral native agentic/tool system",
         }
     if model.startswith("qwen3"):
         return {
-            "system": common,
+            "system": grounding,
+            "prefix": [],
             "payload": {"think": False},
-            "integration": "Qwen native tools, thinking disabled for instruct agent",
+            "integration": "Qwen native tools with thinking disabled",
         }
-    return {"system": common, "payload": {}, "integration": "native"}
+    return {"system": grounding, "prefix": [], "payload": {}, "integration": "native"}
 
-GROUP = {
+FILTER = {
     "type": "object",
     "properties": {
         "people": {"type": "array", "items": {"type": "string"}},
         "genres": {"type": "array", "items": {"type": "string"}},
         "keywords": {"type": "array", "items": {"type": "string"}},
-        "dates": {"type": "array", "items": {
-            "type": "object",
-            "properties": {
-                "from": {"type": "integer"},
-                "to": {"type": "integer"},
-            },
-        }},
+        "year_from": {"type": "integer"},
+        "year_to": {"type": "integer"},
     },
+    "additionalProperties": False,
 }
 
 MEDIA_TOOL = {
@@ -73,23 +70,25 @@ MEDIA_TOOL = {
     "function": {
         "name": "seerr_media_search",
         "description": (
-            "Recherche des films ou séries selon des groupes de critères. "
-            "Toutes les contraintes people, genres, keywords et dates d'un même groupe "
-            "sont simultanées (AND). Les groupes sont des alternatives (OR). "
-            "Crée un nouveau groupe uniquement si la demande exprime une alternative. "
-            "include et exclude ont exactement la même structure. "
-            "exclude porte déjà la négation : ses valeurs nomment positivement la propriété à retirer. "
-            "people contient les personnes, genres les genres de catalogue, keywords les thèmes/concepts "
-            "et dates les périodes. N'ajoute aucun critère non demandé."
+            "Search the media catalogue. all_of contains criteria that must ALL match (AND). "
+            "any_of contains alternative filters where AT LEAST ONE filter must match (OR). "
+            "exclude_any contains filters where matching ANY filter excludes the media. "
+            "Within one filter, every supplied field/value must match. "
+            "people are persons, genres are catalogue genres, keywords are themes/concepts, "
+            "and year_from/year_to define an inclusive release-year interval. "
+            "Use positive values in exclude_any; exclusion is already expressed by the field name. "
+            "Do not add criteria the user did not request."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "media_type": {"type": "string", "enum": ["movie", "tv"]},
-                "include": {"type": "array", "items": GROUP},
-                "exclude": {"type": "array", "items": GROUP},
+                "all_of": FILTER,
+                "any_of": {"type": "array", "items": FILTER},
+                "exclude_any": {"type": "array", "items": FILTER},
             },
-            "required": ["media_type", "include"],
+            "required": ["media_type"],
+            "additionalProperties": False,
         },
     },
 }
@@ -116,14 +115,15 @@ PROMPT = (
 
 EXPECTED_SEARCH = {
     "media_type": "movie",
-    "include": [{
+    "all_of": {
         "people": ["Bruce Willis"],
         "genres": ["Science Fiction"],
         "keywords": ["time travel"],
-        "dates": [{"from": 1990, "to": 1999}],
-    }],
-    "exclude": [
-        {"dates": [{"from": 1998, "to": 1998}]},
+        "year_from": 1990,
+        "year_to": 1999,
+    },
+    "exclude_any": [
+        {"year_from": 1998, "year_to": 1998},
         {"people": ["Scarlett Johansson"]},
     ],
 }
@@ -204,37 +204,37 @@ def norm(v):
 
 
 def search_semantics(args):
-    """Strict structure, tolerant only to catalogue vocabulary spelling."""
+    """Validate the public LLM-friendly contract and its intended semantics."""
     if not isinstance(args, dict) or args.get("media_type") != "movie":
         return False, "media_type"
-    inc, exc = args.get("include"), args.get("exclude")
-    if not isinstance(inc, list) or len(inc) != 1 or not isinstance(inc[0], dict):
-        return False, "include_shape"
-    if not isinstance(exc, list) or not all(isinstance(g, dict) for g in exc):
-        return False, "exclude_shape"
-
-    g = norm(inc[0])
+    allowed = {"media_type", "all_of", "any_of", "exclude_any"}
+    if set(args) - allowed:
+        return False, "unexpected_top_level"
+    g = args.get("all_of")
+    if not isinstance(g, dict):
+        return False, "all_of_shape"
+    g = norm(g)
     if g.get("people") != ["bruce willis"]:
         return False, "include_people"
     if g.get("genres") not in (["science fiction"], ["sci-fi"], ["sf"]):
         return False, "include_genre"
     if g.get("keywords") not in (["time travel"], ["time-travel"], ["voyage dans le temps"]):
         return False, "include_keyword"
-    if g.get("dates") != [{"from": 1990, "to": 1999}]:
+    if g.get("year_from") != 1990 or g.get("year_to") != 1999:
         return False, "include_dates"
-
-    has_1998 = any(norm(x.get("dates")) == [{"from": 1998, "to": 1998}] for x in exc)
-    has_scarlett = any(norm(x.get("people")) == ["scarlett johansson"] for x in exc)
+    if args.get("any_of"):
+        return False, "unexpected_alternative"
+    exc = args.get("exclude_any")
+    if not isinstance(exc, list) or not all(isinstance(x, dict) for x in exc):
+        return False, "exclude_shape"
+    ne = [norm(x) for x in exc]
+    has_1998 = any(x == {"year_from": 1998, "year_to": 1998} for x in ne)
+    has_scarlett = any(x == {"people": ["scarlett johansson"]} for x in ne)
     if not has_1998:
         return False, "exclude_1998"
     if not has_scarlett:
         return False, "exclude_scarlett"
-    # Exclusion criteria are OR groups. Putting both in one group would mean
-    # "exclude only 1998 Scarlett films", which is not the user's request.
-    if any("dates" in x and "people" in x for x in exc):
-        return False, "exclude_wrong_and"
     return True, None
-
 
 def execute(tc):
     fn = ((tc or {}).get("function") or {}).get("name")
@@ -254,7 +254,7 @@ def execute(tc):
 
 def run(model):
     cfg = model_config(model)
-    messages = []
+    messages = list(cfg.get("prefix", []))
     if cfg["system"] is not None:
         messages.append({"role": "system", "content": cfg["system"]})
     messages.append({"role": "user", "content": PROMPT})
@@ -356,6 +356,9 @@ def main():
             "model_specific_native_integration": True,
             "qwen_native_think_disabled": True,
             "granite_custom_system_omitted": True,
+            "phi_custom_system_omitted": True,
+            "ministral_custom_system_omitted": True,
+            "llm_friendly_boolean_tool_contract": True,
         },
         "models": [],
     }
