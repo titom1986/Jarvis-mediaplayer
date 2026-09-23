@@ -50,7 +50,7 @@ MODEL_PROFILES = {
     "qwen3": {"think": False},
     # Granite 3.3 documents thinking through its native template. Ollama's current
     # template exposes the Think flag directly, so let Granite use that capability.
-    "granite3.3": {"think": True},
+    "granite3.3": {},
     # Phi-4 Mini and Ministral 3 have native tool templates. Do not duplicate their
     # tool-call syntax in the system prompt.
     "phi4-mini": {},
