@@ -46,35 +46,54 @@ SYSTEM = """Tu es JARVIS, l'agent d'un media center. Utilise les outils disponib
 
 MODEL_PROFILES = {"qwen3": {"think": False}, "granite3.3": {}, "phi4-mini": {}, "ministral-3": {}}
 
-# Mock intentionally contains plausible distractors and enough candidates to force a real choice.
-SEARCH_RESULT = {
-    "count": 5,
-    "results": [
-        {"title": "Armageddon", "year": 1998, "rating": 6.83, "voteCount": 8844, "genres": ["Science Fiction", "Action"], "people": ["Bruce Willis"], "keywords": ["asteroid", "space mission"]},
-        {"title": "The Fifth Element", "year": 1997, "rating": 7.55, "voteCount": 11200, "genres": ["Science Fiction", "Action"], "people": ["Bruce Willis"], "keywords": ["dystopia", "future"]},
-        {"title": "12 Monkeys", "year": 1995, "rating": 7.60, "voteCount": 8500, "genres": ["Science Fiction", "Thriller"], "people": ["Bruce Willis"], "keywords": ["dystopia", "time travel"]},
-        {"title": "The Jackal", "year": 1997, "rating": 6.40, "voteCount": 1800, "genres": ["Action", "Thriller"], "people": ["Bruce Willis"], "keywords": ["assassin"]},
-        {"title": "Die Hard 2", "year": 1990, "rating": 7.00, "voteCount": 5800, "genres": ["Action"], "people": ["Bruce Willis"], "keywords": ["airport"]}
-    ]
-}
-
-PLEX = {
-    "Armageddon": {"found": True, "title": "Armageddon", "viewCount": 1, "watched": True},
-    "The Fifth Element": {"found": True, "title": "The Fifth Element", "viewCount": 0, "watched": False},
-    "12 Monkeys": {"found": False, "title": "12 Monkeys"},
-    "The Jackal": {"found": False, "title": "The Jackal"},
-    "Die Hard 2": {"found": False, "title": "Die Hard 2"},
-}
-
+# Each case provides the result that the real deterministic tool would return
+# AFTER applying the requested filters. No semantic filtering is duplicated here.
 CASES = [
     {
-        "name": "recommend_avoid_watched",
+        "name": "watched_only_match",
         "prompt": "Je voudrais un film de science-fiction avec Bruce Willis des années 90 que tu me conseillerais basé sur sa note. Je ne veux pas de film dystopique et, s'il est présent dans Plex, évite ceux que j'ai déjà vus.",
+        "search_result": {"count": 1, "results": [
+            {"title": "Armageddon", "year": 1998, "rating": 6.83, "voteCount": 8844}
+        ]},
+        "plex": {"Armageddon": {"found": True, "title": "Armageddon", "viewCount": 1, "watched": True}},
+        "expected_plex": ["armageddon"],
+        "final_mode": "no_match",
         "max_turns": 6,
+    },
+    {
+        "name": "unwatched_match",
+        "prompt": "Je voudrais un film de science-fiction avec Bruce Willis des années 90 que tu me conseillerais basé sur sa note. Je ne veux pas de film dystopique et, s'il est présent dans Plex, évite ceux que j'ai déjà vus.",
+        "search_result": {"count": 1, "results": [
+            {"title": "Armageddon", "year": 1998, "rating": 6.83, "voteCount": 8844}
+        ]},
+        "plex": {"Armageddon": {"found": True, "title": "Armageddon", "viewCount": 0, "watched": False}},
+        "expected_plex": ["armageddon"],
+        "final_mode": "recommend_armageddon",
+        "max_turns": 6,
+    },
+    {
+        "name": "choose_best_rating",
+        "prompt": "Trouve-moi un thriller entre 2020 et 2025 et conseille-moi le mieux noté. S'il est dans Plex et déjà vu, prends le suivant.",
+        "search_result": {"count": 3, "results": [
+            {"title": "Alpha", "year": 2023, "rating": 8.4, "voteCount": 6200},
+            {"title": "Bravo", "year": 2022, "rating": 8.0, "voteCount": 9100},
+            {"title": "Charlie", "year": 2021, "rating": 7.6, "voteCount": 12000}
+        ]},
+        "plex": {
+            "Alpha": {"found": True, "title": "Alpha", "viewCount": 1, "watched": True},
+            "Bravo": {"found": True, "title": "Bravo", "viewCount": 0, "watched": False},
+            "Charlie": {"found": False, "title": "Charlie"}
+        },
+        "expected_plex": ["alpha", "bravo"],
+        "final_mode": "recommend_bravo",
+        "max_turns": 7,
     },
     {
         "name": "plex_direct",
         "prompt": "Est-ce que j'ai Armageddon dans Plex et est-ce que je l'ai déjà vu ?",
+        "plex": {"Armageddon": {"found": True, "title": "Armageddon", "viewCount": 1, "watched": True}},
+        "expected_plex": ["armageddon"],
+        "final_mode": "plex_watched",
         "max_turns": 4,
     },
 ]
@@ -103,13 +122,14 @@ def arguments(call):
         return json.loads(raw)
     return {}
 
-def execute(call):
+def execute(call, case):
     fn = (call.get("function") or {}).get("name")
     args = arguments(call)
     if fn == "seerr_media_search":
-        return SEARCH_RESULT
+        return case.get("search_result", {"count": 0, "results": []})
     if fn == "plex_status":
-        return PLEX.get(args.get("title"), {"found": False, "title": args.get("title")})
+        title = args.get("title")
+        return case.get("plex", {}).get(title, {"found": False, "title": title})
     return {"error": "unknown tool"}
 
 def tool_message(call, result):
@@ -134,7 +154,7 @@ def run_case(model, case):
             final = msg.get("content") or ""
             break
         for tc in calls:
-            result = execute(tc)
+            result = execute(tc, case)
             trace[-1].setdefault("tool_results", []).append(result)
             messages.append(tool_message(tc, result))
     return {"final": final, "trace": trace, "wall_s": total_wall, "tokens": total_out,
@@ -145,26 +165,35 @@ def norm(s):
 
 def score(case, result):
     trace = result["trace"]
-    names = [(tc.get("function") or {}).get("name") for t in trace for tc in t.get("tool_calls", [])]
-    final = norm(result["final"])
-    if case["name"] == "plex_direct":
-        ok = names and names[0] == "plex_status" and "armageddon" in final and any(x in final for x in ["vu", "visionn", "déjà"])
-        return ok, {"tools": names, "final": result["final"]}
-    # Search must happen, and the final answer must honor both exclusion and watched-state.
-    searched = "seerr_media_search" in names
-    checked_armageddon = False
+    calls = []
     for t in trace:
         for tc in t.get("tool_calls", []):
-            if (tc.get("function") or {}).get("name") == "plex_status":
-                try:
-                    checked_armageddon |= norm(arguments(tc).get("title")) == "armageddon"
-                except Exception:
-                    pass
-    # Given the mock: dystopian titles are excluded; Armageddon is the sole valid SF candidate,
-    # but it is watched. A correct agent should explain that no unwatched matching recommendation remains.
-    acknowledges_constraint = any(x in final for x in ["aucun", "pas de", "déjà vu", "déjà regard"])
-    ok = searched and checked_armageddon and acknowledges_constraint
-    return ok, {"tools": names, "final": result["final"]}
+            fn = (tc.get("function") or {}).get("name")
+            try:
+                args = arguments(tc)
+            except Exception:
+                args = {}
+            calls.append((fn, args))
+    names = [x[0] for x in calls]
+    final = norm(result["final"])
+    plex_titles = [norm(args.get("title")) for fn, args in calls if fn == "plex_status"]
+    expected_plex = case.get("expected_plex", [])
+    plex_ok = all(title in plex_titles for title in expected_plex)
+
+    mode = case["final_mode"]
+    if mode == "plex_watched":
+        final_ok = "armageddon" in final and any(x in final for x in ["vu", "visionn", "déjà"])
+        ok = names and names[0] == "plex_status" and plex_ok and final_ok
+    elif mode == "no_match":
+        final_ok = any(x in final for x in ["aucun", "pas de", "déjà vu", "déjà regard", "déjà visionn"])
+        ok = "seerr_media_search" in names and plex_ok and final_ok
+    elif mode == "recommend_armageddon":
+        ok = "seerr_media_search" in names and plex_ok and "armageddon" in final
+    elif mode == "recommend_bravo":
+        ok = "seerr_media_search" in names and plex_ok and "bravo" in final and "alpha" not in final.split("recommand")[0][-80:]
+    else:
+        ok = False
+    return ok, {"tools": names, "plex_titles": plex_titles, "final": result["final"]}
 
 def main():
     import sys
@@ -179,7 +208,12 @@ def main():
                 if not ok:
                     print("  FAIL:", json.dumps(detail, ensure_ascii=False))
                 for t in result["trace"]:
-                    calls = [((x.get("function") or {}).get("name"), arguments(x)) for x in t.get("tool_calls", [])]
+                    calls = []
+                    for x in t.get("tool_calls", []):
+                        try:
+                            calls.append(((x.get("function") or {}).get("name"), arguments(x)))
+                        except Exception as e:
+                            calls.append(("MALFORMED", repr(e)))
                     print(f"  T{t['turn']}: tools={calls} content={t['content']!r}")
             except Exception as e:
                 print(f"{model},{case['name']},0,ERROR,,,,")
