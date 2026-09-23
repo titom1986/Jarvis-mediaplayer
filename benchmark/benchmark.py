@@ -42,11 +42,26 @@ PLEX_TOOL = {
     }
 }
 
-SYSTEM = """Tu es l'interpréteur d'un media center. Choisis les outils nécessaires.
-Toutes les contraintes cumulatives vont dans un même groupe include; plusieurs groupes seulement pour des alternatives OR.
-Une personne va dans people, un genre dans genres, un concept/thème dans keywords, une période dans dates.
-Une décennie est inclusive (années 90 = 1990..1999). exclude contient le concept positif à exclure.
-N'invente aucun critère. Réponds dans la langue de l'utilisateur."""
+SYSTEM = """Tu es JARVIS, l'agent d'un media center. Utilise les outils disponibles quand ils sont nécessaires pour répondre à la demande. N'invente pas les données des services. Réponds dans la langue de l'utilisateur."""
+
+MODEL_PROFILES = {
+    # Qwen3 exposes native tool calling and Ollama-specific thinking control.
+    # For an interactive media agent we benchmark its documented non-thinking mode.
+    "qwen3": {"think": False},
+    # Granite 3.3 documents thinking through its native template. Ollama's current
+    # template exposes the Think flag directly, so let Granite use that capability.
+    "granite3.3": {"think": True},
+    # Phi-4 Mini and Ministral 3 have native tool templates. Do not duplicate their
+    # tool-call syntax in the system prompt.
+    "phi4-mini": {},
+    "ministral-3": {},
+}
+
+def model_profile(model):
+    for prefix, profile in MODEL_PROFILES.items():
+        if model.startswith(prefix):
+            return profile
+    return {}
 
 CASES = [
     {
@@ -69,9 +84,11 @@ CASES = [
 ]
 
 def post(model, prompt):
-    body = json.dumps({"model": model, "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
-                       "tools": [MEDIA_TOOL, PLEX_TOOL], "stream": False, "keep_alive": "30m", "think": False,
-                       "options": {"temperature": 0, "num_predict": 120}}).encode()
+    payload = {"model": model, "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
+               "tools": [MEDIA_TOOL, PLEX_TOOL], "stream": False, "keep_alive": "30m",
+               "options": {"temperature": 0, "num_predict": 160}}
+    payload.update(model_profile(model))
+    body = json.dumps(payload).encode()
     req = urllib.request.Request(OLLAMA, data=body, headers={"Content-Type": "application/json"})
     started = time.perf_counter()
     with urllib.request.urlopen(req, timeout=300) as r:
