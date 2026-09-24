@@ -51,7 +51,8 @@ class PlannerTests(unittest.TestCase):
 
         result = extract_intent("un film", post=post)
 
-        self.assertEqual(result, payload)
+        self.assertEqual({k: v for k, v in result.items() if k != "_perf"}, payload)
+        self.assertIn("_perf", result)
         body = post.call_args.kwargs["json"]
         self.assertIsInstance(body["format"], dict)
         self.assertEqual(body["options"]["temperature"], 0)
