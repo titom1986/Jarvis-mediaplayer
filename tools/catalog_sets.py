@@ -162,8 +162,6 @@ def estimate_constraint(kind, args):
             return {"error": f"unresolved genre: {args['name']}"}
         group["genres"] = [args["name"]]
     elif kind == "catalog_keyword":
-        if media_search._resolve_keyword_ids([args["name"]]) is None:
-            return {"error": f"unresolved keyword: {args['name']}"}
         names = [args["name"], *(args.get("aliases") or [])]
         resolved = []
         for candidate in names:
@@ -452,7 +450,6 @@ GENRE_TOOL = _tool(
     "Declare one movie or TV genre constraint. Use the canonical catalogue genre name, normally English (for example Science Fiction). Multiple constraint calls may be emitted together; Python composes them deterministically.",
     {
         "name": {"type": "string"},
-        "aliases": {"type": "array", "items": {"type": "string"}, "maxItems": 5, "description": "Optional catalogue keyword labels that mean the same requested concept. They are OR alternatives, not extra constraints. Supply useful English lexical variants when the user's concept can have several catalogue labels."},
         "media_type": {"type": "string", "enum": ["movie", "tv"]},
         "source": {"type": "string", "description": "Optional existing candidate-set handle to refine."},
         "group": {"type": "integer", "minimum": 0, "description": "AND group number. Use the same group for simultaneous constraints; different groups only for explicit OR alternatives. Default 0."},
@@ -466,6 +463,7 @@ KEYWORD_TOOL = _tool(
     "Declare one movie or TV theme/concept/keyword constraint. Use the canonical catalogue keyword, normally English. Multiple constraint calls may be emitted together; Python composes them deterministically.",
     {
         "name": {"type": "string"},
+        "aliases": {"type": "array", "items": {"type": "string"}, "maxItems": 5, "description": "Optional English catalogue keyword labels that express the same requested concept. They are OR alternatives, never additional constraints. Use them when a concept can be represented by several catalogue labels."},
         "media_type": {"type": "string", "enum": ["movie", "tv"]},
         "source": {"type": "string", "description": "Optional existing candidate-set handle to refine."},
         "group": {"type": "integer", "minimum": 0, "description": "AND group number. Use the same group for simultaneous constraints; different groups only for explicit OR alternatives. Default 0."},
