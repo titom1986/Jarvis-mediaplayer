@@ -242,7 +242,9 @@ GENRE_TOOL = _tool(
     {
         "name": {"type": "string"},
         "media_type": {"type": "string", "enum": ["movie", "tv"]},
-        "source": {"type": "string", "description": "Optional existing candidate-set handle to refine."},\n        "group": {"type": "integer", "minimum": 0, "description": "AND group number. Use the same group for simultaneous constraints; different groups only for explicit OR alternatives. Default 0."},\n        "exclude": {"type": "boolean", "description": "True only when this constraint is explicitly excluded by the user. Default false."},
+        "source": {"type": "string", "description": "Optional existing candidate-set handle to refine."},
+        "group": {"type": "integer", "minimum": 0, "description": "AND group number. Use the same group for simultaneous constraints; different groups only for explicit OR alternatives. Default 0."},
+        "exclude": {"type": "boolean", "description": "True only when this constraint is explicitly excluded by the user. Default false."},
     },
     ["name", "media_type"],
 )
@@ -253,7 +255,9 @@ KEYWORD_TOOL = _tool(
     {
         "name": {"type": "string"},
         "media_type": {"type": "string", "enum": ["movie", "tv"]},
-        "source": {"type": "string", "description": "Optional existing candidate-set handle to refine."},\n        "group": {"type": "integer", "minimum": 0, "description": "AND group number. Use the same group for simultaneous constraints; different groups only for explicit OR alternatives. Default 0."},\n        "exclude": {"type": "boolean", "description": "True only when this constraint is explicitly excluded by the user. Default false."},
+        "source": {"type": "string", "description": "Optional existing candidate-set handle to refine."},
+        "group": {"type": "integer", "minimum": 0, "description": "AND group number. Use the same group for simultaneous constraints; different groups only for explicit OR alternatives. Default 0."},
+        "exclude": {"type": "boolean", "description": "True only when this constraint is explicitly excluded by the user. Default false."},
     },
     ["name", "media_type"],
 )
@@ -265,7 +269,9 @@ YEARS_TOOL = _tool(
         "year_from": {"type": "integer"},
         "year_to": {"type": "integer"},
         "media_type": {"type": "string", "enum": ["movie", "tv"]},
-        "source": {"type": "string", "description": "Optional existing candidate-set handle to refine."},\n        "group": {"type": "integer", "minimum": 0, "description": "AND group number. Use the same group for simultaneous constraints; different groups only for explicit OR alternatives. Default 0."},\n        "exclude": {"type": "boolean", "description": "True only when this constraint is explicitly excluded by the user. Default false."},
+        "source": {"type": "string", "description": "Optional existing candidate-set handle to refine."},
+        "group": {"type": "integer", "minimum": 0, "description": "AND group number. Use the same group for simultaneous constraints; different groups only for explicit OR alternatives. Default 0."},
+        "exclude": {"type": "boolean", "description": "True only when this constraint is explicitly excluded by the user. Default false."},
     },
     ["year_from", "year_to", "media_type"],
 )
