@@ -126,6 +126,7 @@ def run_agent(question):
     catalog_sets.reset()
     pending_catalog_batch = None
     grounded_keyword_labels = set()
+    grounded_catalogue_results = None
 
     system, model_payload = _model_config()
     messages = []
@@ -229,11 +230,16 @@ def run_agent(question):
             except Exception as exc:
                 composed = {"error": str(exc)}
             if not composed.get("error") and composed.get("set"):
-                composed["results_loaded"] = False
-                composed["required_action"] = (
-                    "The candidate set is computed but contains no media titles. "
-                    "Call catalog_results with this set before naming, listing, or recommending any media. "
-                    "Never infer titles from the count or from model memory."
+                # Materialize the deterministic final set immediately. The model
+                # owns semantics; Python owns execution and grounding. This removes
+                # an unnecessary orchestration turn and ensures the model never has
+                # to infer titles from an opaque set/count.
+                grounded_catalogue_results = catalog_sets.results(composed["set"], limit=10)
+                composed["grounded_results"] = grounded_catalogue_results
+                composed["results_loaded"] = True
+                composed["response_contract"] = (
+                    "These grounded_results are the only catalogue media you may name "
+                    "as search results. Do not add, substitute, or infer titles from model memory."
                 )
             print("< composed", json.dumps(composed, ensure_ascii=False))
             print("[PERF] catalog_batch", json.dumps(
@@ -256,6 +262,8 @@ def run_agent(question):
                     result = execute_tool(name, args)
                 except Exception as exc:
                     result = {"error": str(exc)}
+                if name == "catalog_results" and not result.get("error"):
+                    grounded_catalogue_results = result
                 if name == "catalog_keyword_vocabulary" and not result.get("error"):
                     grounded_keyword_labels.update(
                         catalog_sets.media_search._norm(item["name"])
