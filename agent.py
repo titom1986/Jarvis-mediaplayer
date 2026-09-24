@@ -124,6 +124,8 @@ def _model_config():
 def run_agent(question):
     total_started = time.perf_counter()
     catalog_sets.reset()
+    pending_catalog_batch = None
+    grounded_keyword_labels = set()
 
     system, model_payload = _model_config()
     messages = []
@@ -160,7 +162,10 @@ def run_agent(question):
         message = payload["message"]
         calls = message.get("tool_calls", [])
         if not calls:
-            final_content = message.get("content", "").strip()
+            if pending_catalog_batch is not None:
+                final_content = "Je n'ai pas pu résoudre un concept contre le vocabulaire réel du catalogue."
+            else:
+                final_content = message.get("content", "").strip()
             break
 
         messages.append(message)
@@ -179,6 +184,46 @@ def run_agent(question):
                 print(f"> {name}({args})")
                 batch_entries.append((name, args))
                 tool_calls += 1
+
+            # A semantic keyword must be grounded against labels that Seerr/TMDB
+            # actually exposes. Python never chooses synonyms: it only returns
+            # catalogue vocabulary and lets the model select the meaning.
+            ungrounded = []
+            for index, (name, args) in enumerate(batch_entries):
+                if name != "catalog_keyword":
+                    continue
+                labels = [args.get("name"), *(args.get("aliases") or [])]
+                if not labels or any(catalog_sets.media_search._norm(v) not in grounded_keyword_labels for v in labels if v):
+                    ungrounded.append((index, args))
+            if ungrounded:
+                pending_catalog_batch = list(batch_entries)
+                for index, args in ungrounded:
+                    vocabulary = catalog_sets.keyword_vocabulary(args["name"])
+                    labels = [item["name"] for item in vocabulary.get("keywords", [])]
+                    grounded_keyword_labels.update(catalog_sets.media_search._norm(v) for v in labels)
+                    result = {
+                        "grounding_required": True,
+                        "concept": args["name"],
+                        "catalogue_labels": labels,
+                        "required_action": "Call catalog_keyword again using only semantically appropriate catalogue_labels as name/aliases; keep the other search constraints unchanged.",
+                    }
+                    pending_tool_messages.append(("catalog_keyword", result))
+                # Ollama requires one result per emitted call.
+                for index, (name, _) in enumerate(batch_entries):
+                    if name != "catalog_keyword":
+                        pending_tool_messages.insert(index, (name, {"accepted": True, "pending_keyword_grounding": True}))
+                print("[PLAN] keyword_grounding", json.dumps({"labels": sorted(grounded_keyword_labels)}, ensure_ascii=False))
+                for name, result in pending_tool_messages:
+                    messages.append({"role": "tool", "tool_name": name, "content": json.dumps(result, ensure_ascii=False)})
+                continue
+
+            if pending_catalog_batch is not None:
+                replacements = [entry for entry in batch_entries if entry[0] == "catalog_keyword"]
+                if replacements:
+                    original = [entry for entry in pending_catalog_batch if entry[0] != "catalog_keyword"]
+                    batch_entries = original + replacements
+                    pending_catalog_batch = None
+
             try:
                 composed = _compose_catalog_batch(batch_entries)
             except Exception as exc:
