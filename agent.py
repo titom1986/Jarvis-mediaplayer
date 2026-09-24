@@ -63,59 +63,41 @@ CATALOG_CONSTRAINT_TOOLS = {
 
 
 def _compose_catalog_batch(entries):
-    """Compose one LLM batch deterministically from group/exclude annotations."""
+    """Compose one LLM constraint batch; Python owns execution order."""
     include_groups = {}
     exclude_groups = {}
 
-    for index, (args, result) in enumerate(entries):
-        if result.get("error"):
-            return {"error": result["error"]}
-        if result.get("found") is False:
-            return {"error": f"unresolved catalogue constraint: {result}"}
-        handle = result.get("set")
-        if not handle:
-            return {"error": f"catalogue constraint produced no set: {result}"}
+    for index, (name, args) in enumerate(entries):
         is_exclude = args.get("exclude", False)
-        # Includes default to one AND group. Independent exclusions default to
-        # separate groups, therefore their union is removed (A - (E1 OR E2)).
-        # An explicit shared group can still express a compound exclusion.
         if is_exclude and "group" not in args:
             group = f"exclude-{index}"
         else:
             group = int(args.get("group", 0))
         target = exclude_groups if is_exclude else include_groups
-        target.setdefault(group, []).append(handle)
+        target.setdefault(group, []).append((name, args))
 
     if not include_groups:
         return {"error": "catalogue batch has no include constraint"}
 
-    def compose_groups(groups):
+    def execute_groups(groups):
         handles = []
         for members in groups.values():
-            if len(members) == 1:
-                handles.append(members[0])
-            else:
-                combined = catalog_sets.combine("intersection", members)
-                if combined.get("error"):
-                    return combined
-                handles.append(combined["set"])
+            result = catalog_sets.execute_constraint_group(members)
+            if result.get("error"):
+                return result
+            handles.append(result["set"])
         if len(handles) == 1:
             value = catalog_sets._get(handles[0])
             return {"set": handles[0], "count": len(value["ids"])}
         return catalog_sets.combine("union", handles)
 
-    included = compose_groups(include_groups)
-    if included.get("error"):
+    included = execute_groups(include_groups)
+    if included.get("error") or not exclude_groups:
         return included
-
-    if not exclude_groups:
-        return included
-
-    excluded = compose_groups(exclude_groups)
+    excluded = execute_groups(exclude_groups)
     if excluded.get("error"):
         return excluded
     return catalog_sets.subtract(included["set"], excluded["set"])
-
 
 def _model_config():
     # Preserve every model's native Ollama tool template. Semantic operating
@@ -174,36 +156,46 @@ def run_agent(question):
         batch_entries = []
         pending_tool_messages = []
 
-        for call in calls:
-            name = call["function"]["name"]
-            args = call["function"].get("arguments") or {}
-            print(f"> {name}({args})")
-            started = time.perf_counter()
-            try:
-                # A batch contains independent declarations. Ignore stale/source
-                # handles so all constraints are materialized on equal footing.
-                exec_args = dict(args)
-                if batch_is_constraints:
-                    exec_args.pop("source", None)
-                result = execute_tool(name, exec_args)
-            except Exception as exc:
-                result = {"error": str(exc)}
-            print("<", json.dumps(result, ensure_ascii=False))
-            print(
-                f"[PERF] tool {name}",
-                json.dumps({"wall_s": round(time.perf_counter() - started, 3)}, ensure_ascii=False),
-            )
-            tool_calls += 1
-            if batch_is_constraints:
-                batch_entries.append((args, result))
-            pending_tool_messages.append((name, result))
-
         if batch_is_constraints:
-            composed = _compose_catalog_batch(batch_entries)
+            started = time.perf_counter()
+            for call in calls:
+                name = call["function"]["name"]
+                args = call["function"].get("arguments") or {}
+                print(f"> {name}({args})")
+                batch_entries.append((name, args))
+                tool_calls += 1
+            try:
+                composed = _compose_catalog_batch(batch_entries)
+            except Exception as exc:
+                composed = {"error": str(exc)}
             print("< composed", json.dumps(composed, ensure_ascii=False))
-            # Attach the deterministic batch result to the final tool response.
-            # The model only needs this final handle for catalog_results.
-            pending_tool_messages[-1][1]["composed"] = composed
+            print("[PERF] catalog_batch", json.dumps(
+                {"wall_s": round(time.perf_counter() - started, 3)}, ensure_ascii=False
+            ))
+            # Ollama expects one tool result per emitted call. Keep declarations
+            # compact and put the deterministic final handle on the last result.
+            for i, (name, args) in enumerate(batch_entries):
+                result = {"accepted": True}
+                if i == len(batch_entries) - 1:
+                    result["composed"] = composed
+                pending_tool_messages.append((name, result))
+        else:
+            for call in calls:
+                name = call["function"]["name"]
+                args = call["function"].get("arguments") or {}
+                print(f"> {name}({args})")
+                started = time.perf_counter()
+                try:
+                    result = execute_tool(name, args)
+                except Exception as exc:
+                    result = {"error": str(exc)}
+                print("<", json.dumps(result, ensure_ascii=False))
+                print(
+                    f"[PERF] tool {name}",
+                    json.dumps({"wall_s": round(time.perf_counter() - started, 3)}, ensure_ascii=False),
+                )
+                tool_calls += 1
+                pending_tool_messages.append((name, result))
 
         for name, result in pending_tool_messages:
             messages.append({
