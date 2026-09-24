@@ -77,6 +77,28 @@ class AgentRoutingTests(unittest.TestCase):
             ("catalog_years", {"year_from": 1998, "year_to": 1998, "media_type": "movie", "exclude": True}),
         ])
         self.assertEqual(agent.catalog_sets._get(result["set"])["ids"], {2})
+        # The exclusion group must refine the already-composed include subset.
+        exclusion_call = execute_group.call_args_list[2]
+        self.assertIsNotNone(exclusion_call.kwargs.get("source"))
+
+    @patch("tools.catalog_sets.materialize_constraint")
+    @patch("tools.catalog_sets.estimate_constraint")
+    def test_exclusion_refines_existing_subset_without_broad_materialization(self, estimate, materialize):
+        source = agent.catalog_sets._store({10, 11, 12}, "movie", "included")
+        estimate.return_value = {"count": 50000}
+        filtered = agent.catalog_sets._store({11}, "movie", "excluded")
+        materialize.return_value = filtered
+
+        result = agent.catalog_sets.execute_constraint_group([
+            ("catalog_years", {
+                "year_from": 1998, "year_to": 1998, "media_type": "movie"
+            })
+        ], source=source["set"])
+
+        self.assertEqual(result["set"], filtered["set"])
+        materialize.assert_called_once()
+        self.assertEqual(materialize.call_args.kwargs["source"], source["set"])
+        self.assertNotIn("seed_ids", materialize.call_args.kwargs)
 
     @patch("tools.catalog_sets.materialize_constraint")
     @patch("tools.catalog_sets.estimate_constraint")
