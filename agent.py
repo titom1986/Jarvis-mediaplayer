@@ -4,43 +4,45 @@ import requests
 import time
 
 from config import OLLAMA_URL, MODEL
-from planner import extract_intent, compile_media_search
-from tools import radarr, sonarr, plex, media_search
+from tools import radarr, sonarr, plex, catalog_sets
 
 
 TOOLS = [
+    *catalog_sets.TOOLS,
+    plex.TOOL,
     radarr.TOOL,
     radarr.QUEUE_TOOL,
     radarr.REQUEST_TOOL,
     sonarr.TOOL,
-    plex.TOOL,
-    media_search.MEDIA_SEARCH_TOOL,
 ]
 
 
 def execute_tool(name, args):
-    if name == "radarr_status":
-        return radarr.status(args["title"])
-
-    if name == "radarr_queue_status":
-        return radarr.queue_status(args["title"])
-
-    if name == "radarr_request_movie":
-        return radarr.request_movie(args["tmdb_id"], french=args.get("french", False))
-
-    if name == "sonarr_status":
-        return sonarr.status(args["title"])
+    if name == "catalog_person":
+        return catalog_sets.person(args["name"], args["media_type"])
+    if name == "catalog_genre":
+        return catalog_sets.genre(args["name"], args["media_type"])
+    if name == "catalog_keyword":
+        return catalog_sets.keyword(args["name"], args["media_type"])
+    if name == "catalog_years":
+        return catalog_sets.years(args["year_from"], args["year_to"], args["media_type"])
+    if name == "catalog_combine":
+        return catalog_sets.combine(args["operation"], args["sets"])
+    if name == "catalog_subtract":
+        return catalog_sets.subtract(args["source"], args["remove"])
+    if name == "catalog_results":
+        return catalog_sets.results(args["set"], args.get("limit", 10))
 
     if name == "plex_status":
         return plex.status(args["title"])
-
-    if name == "seerr_media_search":
-        return media_search.media_search(
-            media_type=args["media_type"],
-            include=args["include"],
-            exclude=args.get("exclude")
-        )
-
+    if name == "radarr_status":
+        return radarr.status(args["title"])
+    if name == "radarr_queue_status":
+        return radarr.queue_status(args["title"])
+    if name == "radarr_request_movie":
+        return radarr.request_movie(args["tmdb_id"], french=args.get("french", False))
+    if name == "sonarr_status":
+        return sonarr.status(args["title"])
     return {"error": f"Outil inconnu : {name}"}
 
 
@@ -55,77 +57,55 @@ def _ollama_perf(payload, wall_s):
     }
 
 
+def _model_config():
+    name = MODEL.casefold()
+    # Keep native default system messages for models whose Ollama templates use
+    # them to teach the tool protocol. Qwen accepts a compact custom policy.
+    if name.startswith(("granite3.3", "phi4-mini", "ministral-3")):
+        return None, {}
+    payload = {"think": False} if name.startswith("qwen3") else {}
+    return (
+        "Tu es JARVIS, l'agent d'un media center. Utilise les outils pour toute "
+        "information dépendant du catalogue ou des services et n'invente pas leurs données. "
+        "Les outils catalog_* créent des ensembles opaques : garde leurs handles courts, "
+        "combine-les par intersection pour des contraintes simultanées, union pour des "
+        "alternatives, et catalog_subtract pour une exclusion. Termine une recherche avec "
+        "catalog_results. N'ajoute/télécharge un média que sur demande explicite. "
+        "Réponds dans la langue de l'utilisateur.",
+        payload,
+    )
+
+
 def run_agent(question):
     total_started = time.perf_counter()
+    catalog_sets.reset()
 
-    intent = extract_intent(question)
-    intent_perf = intent.pop("_perf", {})
-    print("\n[PERF] intent", json.dumps(intent_perf, ensure_ascii=False))
-    compiled_search = compile_media_search(intent)
+    system, model_payload = _model_config()
+    messages = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": question})
 
-    preverified = []
-    if compiled_search is not None:
-        search_started = time.perf_counter()
-        result = media_search.media_search(**compiled_search)
-        search_wall = time.perf_counter() - search_started
-        print("\n--- Recherche structurée ---")
-        print("> seerr_media_search(" + str(compiled_search) + ")")
-        print("<", json.dumps(result, ensure_ascii=False))
-        print("[PERF] media_search", json.dumps({
-            "wall_s": round(search_wall, 3),
-            **result.get("_perf", {})
-        }, ensure_ascii=False))
-        preverified.append({
-            "tool": "seerr_media_search",
-            "arguments": compiled_search,
-            "result": result,
-        })
-
-    messages = [
-        {
-            "role": "system",
-            "content": (
-                "Tu administres un serveur multimédia et réponds dans la langue de l'utilisateur. "
-                "La recherche catalogue est déjà vérifiée et ordonnée. Ne rappelle jamais seerr_media_search. "
-                "IMPORTANT pour avoid_watched : Plex sert uniquement à exclure un candidat qui est À LA FOIS "
-                "found=true ET watched=true. Un candidat found=false dans Plex RESTE VALIDE. "
-                "Un candidat found=true et watched=false RESTE VALIDE. "
-                "Teste les candidats dans l'ordre jusqu'au premier valide, puis recommande-le. "
-                "Si download=false, n'appelle jamais Radarr pour ajouter/télécharger. "
-                "Si download=true, vérifie Plex puis Radarr avant tout ajout. "
-                "french_download ne doit être transmis à Radarr que s'il est vrai. "
-                "Quand tu disposes d'un candidat valide, réponds directement : aucun autre outil n'est nécessaire."
-            )
-        },
-        {
-            "role": "user",
-            "content": (
-                "Demande : " + question + "\n"
-                "Intent structuré : " + json.dumps(intent, ensure_ascii=False) + "\n"
-                "Recherche catalogue déjà vérifiée : " + json.dumps(preverified, ensure_ascii=False)
-            )
-        }
-    ]
-
-    results = list(preverified)
-    print("\n--- Plan agent ---")
+    print("\n--- Agent ---")
     final_content = ""
     llm_calls = []
+    tool_calls = 0
 
-    for step in range(8):
+    # Atomic tools need several cheap turns; the cap prevents a broken model
+    # from looping forever without embedding any query-specific workflow here.
+    for step in range(16):
+        request_payload = {
+            "model": MODEL,
+            "messages": messages,
+            "tools": TOOLS,
+            "stream": False,
+            "keep_alive": "30m",
+            "options": {"temperature": 0, "num_predict": 220},
+        }
+        request_payload.update(model_payload)
+
         call_started = time.perf_counter()
-        response = requests.post(
-            OLLAMA_URL,
-            json={
-                "model": MODEL,
-                "messages": messages,
-                "tools": [radarr.TOOL, radarr.QUEUE_TOOL, radarr.REQUEST_TOOL, sonarr.TOOL, plex.TOOL],
-                "stream": False,
-                "keep_alive": "30m",
-                "options": {"temperature": 0, "num_predict": 160}
-            },
-            timeout=180
-        )
+        response = requests.post(OLLAMA_URL, json=request_payload, timeout=180)
         response.raise_for_status()
         payload = response.json()
         perf = _ollama_perf(payload, time.perf_counter() - call_started)
@@ -134,29 +114,30 @@ def run_agent(question):
 
         message = payload["message"]
         calls = message.get("tool_calls", [])
-
         if not calls:
             final_content = message.get("content", "").strip()
             break
 
         messages.append(message)
-
         for call in calls:
             name = call["function"]["name"]
-            args = call["function"]["arguments"]
+            args = call["function"].get("arguments") or {}
             print(f"> {name}({args})")
-
-            tool_started = time.perf_counter()
-            result = execute_tool(name, args)
-            tool_wall = time.perf_counter() - tool_started
+            started = time.perf_counter()
+            try:
+                result = execute_tool(name, args)
+            except Exception as exc:
+                result = {"error": str(exc)}
             print("<", json.dumps(result, ensure_ascii=False))
-            print(f"[PERF] tool {name}", json.dumps({"wall_s": round(tool_wall, 3)}, ensure_ascii=False))
-
-            results.append({"tool": name, "arguments": args, "result": result})
+            print(
+                f"[PERF] tool {name}",
+                json.dumps({"wall_s": round(time.perf_counter() - started, 3)}, ensure_ascii=False),
+            )
+            tool_calls += 1
             messages.append({
                 "role": "tool",
                 "tool_name": name,
-                "content": json.dumps(result, ensure_ascii=False)
+                "content": json.dumps(result, ensure_ascii=False),
             })
 
     if not final_content:
@@ -164,15 +145,15 @@ def run_agent(question):
 
     print("[PERF] total", json.dumps({
         "wall_s": round(time.perf_counter() - total_started, 3),
-        "ollama_calls": 1 + len(llm_calls)
+        "ollama_calls": len(llm_calls),
+        "tool_calls": tool_calls,
     }, ensure_ascii=False))
-
     print("\n═══ RÉPONSE ═══\n")
     print(final_content)
 
+
 if __name__ == "__main__":
-    print("Seed Agent - Qwen3 4B local")
-    print("Lecture seule")
+    print(f"Seed Agent - {MODEL}")
     print()
 
     if len(sys.argv) > 1:
@@ -181,13 +162,10 @@ if __name__ == "__main__":
         while True:
             try:
                 question = input("> ").strip()
-
                 if question.lower() in {"exit", "quit", "/bye"}:
                     break
-
                 if question:
                     run_agent(question)
-
             except KeyboardInterrupt:
                 print()
                 break
