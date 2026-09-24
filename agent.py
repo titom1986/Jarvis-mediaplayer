@@ -76,13 +76,20 @@ def _compose_catalog_batch(entries):
         target = exclude_groups if is_exclude else include_groups
         target.setdefault(group, []).append((name, args))
 
+    print("[PLAN] batch", json.dumps({
+        "include_groups": {str(k): [name for name, _ in v] for k, v in include_groups.items()},
+        "exclude_groups": {str(k): [name for name, _ in v] for k, v in exclude_groups.items()},
+    }, ensure_ascii=False, sort_keys=True))
+
     if not include_groups:
         return {"error": "catalogue batch has no include constraint"}
 
     def execute_groups(groups, source=None):
         handles = []
-        for members in groups.values():
+        for group_name, members in groups.items():
+            print("[PLAN] group_start", json.dumps({"group": str(group_name), "source": source, "constraints": [{"tool": n, "args": a} for n, a in members]}, ensure_ascii=False, sort_keys=True))
             result = catalog_sets.execute_constraint_group(members, source=source)
+            print("[PLAN] group_done", json.dumps({"group": str(group_name), "source": source, "result": result}, ensure_ascii=False, sort_keys=True))
             if result.get("error"):
                 return result
             handles.append(result["set"])
@@ -92,14 +99,18 @@ def _compose_catalog_batch(entries):
         return catalog_sets.combine("union", handles)
 
     included = execute_groups(include_groups)
+    print("[PLAN] included", json.dumps(included, ensure_ascii=False, sort_keys=True))
     if included.get("error") or not exclude_groups:
         return included
     # Exclusions can only remove included candidates, so refine each exclusion
     # group from the included subset instead of broad-scanning the catalogue.
     excluded = execute_groups(exclude_groups, source=included["set"])
+    print("[PLAN] excluded_union", json.dumps(excluded, ensure_ascii=False, sort_keys=True))
     if excluded.get("error"):
         return excluded
-    return catalog_sets.subtract(included["set"], excluded["set"])
+    final = catalog_sets.subtract(included["set"], excluded["set"])
+    print("[PLAN] final_after_exclusions", json.dumps(final, ensure_ascii=False, sort_keys=True))
+    return final
 
 def _model_config():
     # Preserve every model's native Ollama tool template. Semantic operating
