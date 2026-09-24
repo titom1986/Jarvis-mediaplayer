@@ -139,6 +139,123 @@ def years(year_from, year_to, media_type, source=None):
     return _store(ids, media_type, f"years:{year_from}-{year_to}")
 
 
+def estimate_constraint(kind, args):
+    """Return a cheap cardinality estimate without materializing all Discover pages."""
+    media_type = args["media_type"]
+    if kind == "catalog_person":
+        resolved = media_search._resolve_person(args["name"])
+        if not resolved:
+            return {"error": f"unresolved person: {args['name']}"}
+        ids = media_search._credits_ids(resolved["id"], media_type)
+        return {"count": len(ids), "seed_ids": ids}
+
+    group = {}
+    if kind == "catalog_genre":
+        if media_search._resolve_genre_ids([args["name"]], media_type) is None:
+            return {"error": f"unresolved genre: {args['name']}"}
+        group["genres"] = [args["name"]]
+    elif kind == "catalog_keyword":
+        if media_search._resolve_keyword_ids([args["name"]]) is None:
+            return {"error": f"unresolved keyword: {args['name']}"}
+        group["keywords"] = [args["name"]]
+    elif kind == "catalog_years":
+        group["dates"] = [{"from": args["year_from"], "to": args["year_to"]}]
+    else:
+        return {"error": f"unsupported constraint: {kind}"}
+
+    genre_ids = media_search._resolve_genre_ids(group.get("genres", []), media_type)
+    keyword_ids = media_search._resolve_keyword_ids(group.get("keywords", []))
+    if genre_ids is None or keyword_ids is None:
+        return {"error": "unresolved catalogue constraint"}
+    year_from, year_to = media_search._date_bounds(group.get("dates", []))
+    result = seerr.discover(
+        media_type,
+        page=1,
+        genre_ids=genre_ids,
+        keyword_ids=keyword_ids,
+        date_from=f"{year_from}-01-01" if year_from is not None else None,
+        date_to=f"{year_to}-12-31" if year_to is not None else None,
+    )
+    if "error" in result:
+        return {"error": result["error"]}
+    # Seerr/TMDB Discover exposes totalResults. Fall back to the first-page
+    # cardinality only when the server omits it; the estimate is used for order,
+    # never for correctness.
+    count_value = result.get("totalResults")
+    if count_value is None:
+        count_value = result.get("total_results")
+    if count_value is None:
+        count_value = len(result.get("results", []))
+    return {"count": int(count_value)}
+
+
+def materialize_constraint(kind, args, source=None, seed_ids=None):
+    """Materialize one constraint, optionally refining an existing set."""
+    media_type = args["media_type"]
+    if source is not None:
+        if kind == "catalog_person":
+            resolved = media_search._resolve_person(args["name"])
+            if not resolved:
+                return {"error": f"unresolved person: {args['name']}"}
+            person_ids = media_search._credits_ids(resolved["id"], media_type)
+            src = _get(source)
+            return _store(src["ids"] & person_ids, media_type, f"person:{args['name']}")
+        if kind == "catalog_genre":
+            return genre(args["name"], media_type, source)
+        if kind == "catalog_keyword":
+            return keyword(args["name"], media_type, source)
+        if kind == "catalog_years":
+            return years(args["year_from"], args["year_to"], media_type, source)
+        return {"error": f"unsupported constraint: {kind}"}
+
+    if seed_ids is not None:
+        label = kind.replace("catalog_", "") + ":seed"
+        return _store(seed_ids, media_type, label)
+    if kind == "catalog_person":
+        return person(args["name"], media_type)
+    if kind == "catalog_genre":
+        return genre(args["name"], media_type)
+    if kind == "catalog_keyword":
+        return keyword(args["name"], media_type)
+    if kind == "catalog_years":
+        return years(args["year_from"], args["year_to"], media_type)
+    return {"error": f"unsupported constraint: {kind}"}
+
+
+def execute_constraint_group(entries):
+    """Choose the cheapest seed by data cardinality, then refine deterministically."""
+    if not entries:
+        return {"error": "constraint group is empty"}
+    media_types = {args.get("media_type") for _, args in entries}
+    if len(media_types) != 1:
+        return {"error": "constraint group has different media types"}
+
+    estimates = []
+    for index, (kind, args) in enumerate(entries):
+        estimate = estimate_constraint(kind, args)
+        if estimate.get("error"):
+            return estimate
+        estimates.append((estimate["count"], index, kind, args, estimate))
+
+    _, seed_index, seed_kind, seed_args, seed_estimate = min(estimates, key=lambda x: (x[0], x[1]))
+    current = materialize_constraint(
+        seed_kind, seed_args, seed_ids=seed_estimate.get("seed_ids")
+    )
+    if current.get("error"):
+        return current
+
+    # Refine in ascending estimated cardinality. This changes cost only, never
+    # boolean semantics: every remaining constraint is still ANDed.
+    for _, index, kind, args, _ in sorted(estimates, key=lambda x: (x[0], x[1])):
+        if index == seed_index:
+            continue
+        current = materialize_constraint(kind, args, source=current["set"])
+        if current.get("error"):
+            return current
+        if current.get("count") == 0:
+            break
+    return current
+
 def combine(operation, sets):
     if not sets:
         return {"error": "sets must not be empty"}
