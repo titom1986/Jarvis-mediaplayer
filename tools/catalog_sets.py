@@ -336,10 +336,22 @@ def results(handle, limit=10):
         key=lambda x: (x.get("rating") or 0, x.get("voteCount") or 0),
         reverse=True,
     )
+    # Keep the LLM context deliberately compact. Full Seerr details are useful
+    # while filtering, but the final answer only needs identity/ranking fields.
+    compact = []
+    for item in details[:max(1, min(int(limit), 20))]:
+        compact.append({
+            "mediaType": item.get("mediaType"),
+            "id": item.get("id"),
+            "title": item.get("title"),
+            "releaseDate": item.get("releaseDate"),
+            "rating": item.get("rating"),
+            "voteCount": item.get("voteCount"),
+        })
     return {
         "set": handle,
         "count": len(details),
-        "results": details[:max(1, min(int(limit), 20))],
+        "results": compact,
     }
 
 
