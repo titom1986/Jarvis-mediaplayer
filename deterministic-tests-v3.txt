@@ -1,0 +1,81 @@
+test_best_seed_is_selected_by_count_not_semantic_type (test_agent_routing.AgentRoutingTests) ... ok
+test_catalog_refinements_forward_source (test_agent_routing.AgentRoutingTests) ... ok
+test_catalog_set_algebra_routing (test_agent_routing.AgentRoutingTests) ... ok
+test_exclusion_refines_existing_subset_without_broad_materialization (test_agent_routing.AgentRoutingTests) ... ok
+test_genre_estimate_reads_only_first_discover_page (test_agent_routing.AgentRoutingTests) ... ok
+test_parallel_constraint_batch_and_or_exclude (test_agent_routing.AgentRoutingTests) ... ERROR
+test_plex_radarr_sonarr_routing (test_agent_routing.AgentRoutingTests) ... ok
+test_unknown_tool_is_nonfatal (test_agent_routing.AgentRoutingTests) ... ok
+test_catalogue_label_normalization_is_lexical_only (test_catalog_sets.CatalogSetTests) ... ok
+test_first_broad_constraint_can_use_discover (test_catalog_sets.CatalogSetTests) ... ok
+test_mixed_media_types_are_rejected (test_catalog_sets.CatalogSetTests) ... ok
+test_people_first_refinement_never_broad_scans (test_catalog_sets.CatalogSetTests) ... ok
+test_person_returns_handle_not_ids (test_catalog_sets.CatalogSetTests) ... ok
+test_representative_end_to_end_set_path (test_catalog_sets.CatalogSetTests) ... ok
+test_set_algebra_keeps_cardinality_out_of_model_context (test_catalog_sets.CatalogSetTests) ... ok
+test_unknown_handle_is_safe_error (test_catalog_sets.CatalogSetTests) ... ok
+test_unresolved_genre_is_error_not_false_empty_set (test_catalog_sets.CatalogSetTests) ... ok
+test_and_inside_group (test_media_search.MediaSearchTests) ... ok
+test_exclusion_group (test_media_search.MediaSearchTests) ... ok
+test_or_between_groups (test_media_search.MediaSearchTests) ... ok
+test_people_is_optional_but_supported (test_media_search.MediaSearchTests) ... ok
+test_rating_sort (test_media_search.MediaSearchTests) ... ok
+test_realistic_broad_discover_dataset_paginates_without_people (test_media_search.MediaSearchTests) ... ok
+test_realistic_people_first_dataset_filters_before_returning (test_media_search.MediaSearchTests) ... ok
+test_without_people_and_pagination (test_media_search.MediaSearchTests) ... ok
+test_accepts_exclusive_semantic_classification (test_planner.PlannerTests) ... ok
+test_compile_cumulative_search_as_one_and_group (test_planner.PlannerTests) ... ok
+test_compile_explicit_alternatives_as_or_groups (test_planner.PlannerTests) ... ok
+test_extractor_uses_json_schema_and_temperature_zero (test_planner.PlannerTests) ... FAIL
+test_rejects_duplicate_semantic_classification (test_planner.PlannerTests) ... ok
+test_status_exposes_watched_state (test_plex.PlexTests) ... ok
+test_request_movie_does_not_duplicate_existing_movie (test_radarr_request.RadarrRequestTests) ... ok
+test_request_movie_uses_configured_default_profile (test_radarr_request.RadarrRequestTests) ... ok
+test_request_movie_uses_french_profile_only_when_requested (test_radarr_request.RadarrRequestTests) ... ok
+
+======================================================================
+ERROR: test_parallel_constraint_batch_and_or_exclude (test_agent_routing.AgentRoutingTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/usr/lib/python3.10/unittest/mock.py", line 1379, in patched
+    return func(*newargs, **newkeywargs)
+  File "/home/titom/seed-agent/tests/test_agent_routing.py", line 74, in test_parallel_constraint_batch_and_or_exclude
+    result = agent._compose_catalog_batch([
+  File "/home/titom/seed-agent/agent.py", line 99, in _compose_catalog_batch
+    return catalog_sets.subtract(included["set"], excluded["set"])
+NameError: name 'excluded' is not defined
+
+======================================================================
+FAIL: test_extractor_uses_json_schema_and_temperature_zero (test_planner.PlannerTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/titom/seed-agent/tests/test_planner.py", line 54, in test_extractor_uses_json_schema_and_temperature_zero
+    self.assertEqual(result, payload)
+AssertionError: {'med[290 chars]False, '_perf': {'wall_s': 0.0, 'prompt_eval_m[82 chars]0.0}} != {'med[290 chars]False}
+- {'_perf': {'eval_ms': 0.0,
+-            'load_ms': 0.0,
+-            'output_tokens': None,
+-            'prompt_eval_ms': 0.0,
+-            'prompt_tokens': None,
+-            'wall_s': 0.0},
+-  'alternatives': [],
+? ^
+
++ {'alternatives': [],
+? ^
+
+   'avoid_watched': False,
+   'download': False,
+   'forbidden': {'dates': [], 'genres': [], 'keywords': [], 'people': []},
+   'french_download': False,
+   'media_type': 'movie',
+   'recommend_by_rating': False,
+   'required': {'dates': [], 'genres': [], 'keywords': [], 'people': []},
+   'search': True}
+
+----------------------------------------------------------------------
+Ran 34 tests in 0.129s
+
+FAILED (failures=1, errors=1)
+
+=== EXIT CODE: 0 ===
