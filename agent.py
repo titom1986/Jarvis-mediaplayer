@@ -22,6 +22,8 @@ def execute_tool(name, args):
         return catalog_sets.person(args["name"], args["media_type"])
     if name == "catalog_genre":
         return catalog_sets.genre(args["name"], args["media_type"], args.get("source"))
+    if name == "catalog_keyword_vocabulary":
+        return catalog_sets.keyword_vocabulary(args["query"], args.get("limit", 12))
     if name == "catalog_keyword":
         return catalog_sets.keyword(args["name"], args["media_type"], args.get("source"), aliases=args.get("aliases"))
     if name == "catalog_years":
