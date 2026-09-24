@@ -228,6 +228,13 @@ def run_agent(question):
                 composed = _compose_catalog_batch(batch_entries)
             except Exception as exc:
                 composed = {"error": str(exc)}
+            if not composed.get("error") and composed.get("set"):
+                composed["results_loaded"] = False
+                composed["required_action"] = (
+                    "The candidate set is computed but contains no media titles. "
+                    "Call catalog_results with this set before naming, listing, or recommending any media. "
+                    "Never infer titles from the count or from model memory."
+                )
             print("< composed", json.dumps(composed, ensure_ascii=False))
             print("[PERF] catalog_batch", json.dumps(
                 {"wall_s": round(time.perf_counter() - started, 3)}, ensure_ascii=False
