@@ -64,6 +64,59 @@ class CatalogSetTests(unittest.TestCase):
         self.assertEqual(result["count"], 3)
         discover.assert_called_once()
 
+    @patch("tools.catalog_sets.seerr.media_details")
+    @patch("tools.catalog_sets.media_search._credits_ids")
+    @patch("tools.catalog_sets.media_search._resolve_person")
+    def test_representative_end_to_end_set_path(self, resolve, credits, details):
+        people = {
+            "Bruce Willis": (1, set(range(1, 166))),
+            "Scarlett Johansson": (2, {7, 50, 90}),
+        }
+        resolve.side_effect = lambda name: {"id": people[name][0], "title": name}
+        credits.side_effect = lambda person_id, media_type: (
+            people["Bruce Willis"][1] if person_id == 1 else people["Scarlett Johansson"][1]
+        )
+
+        def item(media_id, media_type):
+            return {
+                "id": media_id,
+                "mediaType": media_type,
+                "title": f"Movie {media_id}",
+                "releaseDate": (
+                    "1998-01-01" if media_id in {5, 6}
+                    else "1995-01-01" if media_id <= 20
+                    else "2005-01-01"
+                ),
+                "genres": ["Science Fiction"] if media_id <= 40 else ["Action"],
+                "keywords": ["time travel"] if media_id <= 10 else [],
+                "rating": 9.0 - media_id / 100,
+                "voteCount": 1000 - media_id,
+                "overview": "",
+            }
+        details.side_effect = item
+
+        bruce = catalog_sets.person("Bruce Willis", "movie")
+        sf = catalog_sets.genre("Science Fiction", "movie", source=bruce["set"])
+        decade = catalog_sets.years(1990, 1999, "movie", source=sf["set"])
+        travel = catalog_sets.keyword("time travel", "movie", source=decade["set"])
+        year_98 = catalog_sets.years(1998, 1998, "movie", source=travel["set"])
+        scarlett = catalog_sets.person("Scarlett Johansson", "movie")
+        excluded = catalog_sets.combine("union", [year_98["set"], scarlett["set"]])
+        final = catalog_sets.subtract(travel["set"], excluded["set"])
+        ranked = catalog_sets.results(final["set"], limit=20)
+
+        self.assertEqual(bruce["count"], 165)
+        self.assertEqual(sf["count"], 40)
+        self.assertEqual(decade["count"], 20)
+        self.assertEqual(travel["count"], 10)
+        self.assertEqual(year_98["count"], 2)
+        self.assertEqual(scarlett["count"], 3)
+        self.assertEqual(final["count"], 7)
+        self.assertEqual([x["id"] for x in ranked["results"]], [1, 2, 3, 4, 8, 9, 10])
+        self.assertNotIn(5, [x["id"] for x in ranked["results"]])
+        self.assertNotIn(6, [x["id"] for x in ranked["results"]])
+        self.assertNotIn(7, [x["id"] for x in ranked["results"]])
+
     def test_unknown_handle_is_safe_error(self):
         self.assertIn("error", catalog_sets.combine("intersection", ["missing"]))
 
