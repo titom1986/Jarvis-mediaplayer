@@ -12,12 +12,14 @@ import time
 from datetime import datetime
 
 MODELS = [
-    "qwen3:4b-instruct",
     "qwen3:1.7b",
     "granite3.3:2b",
     "phi4-mini:3.8b",
     "ministral-3:3b",
 ]
+
+OLLAMA_CONTAINER = os.getenv("BENCH_OLLAMA_CONTAINER", "jarvis-model-benchmark-ollama")
+OLLAMA_URL = os.getenv("BENCH_OLLAMA_URL", "http://127.0.0.1:11435/api/chat")
 
 # Representative but deliberately NOT the reserved final E2E prompt.
 CASES = [
@@ -41,20 +43,24 @@ def run(cmd, env=None):
 
 def snapshot():
     parts = []
-    for cmd in (["uptime"], ["free", "-h"], ["docker", "stats", "--no-stream", "ollama"]):
+    for cmd in (["uptime"], ["free", "-h"], ["docker", "stats", "--no-stream", OLLAMA_CONTAINER]):
         result = run(cmd)
         parts.append("$ " + " ".join(cmd) + "\n" + result.stdout.rstrip())
     return "\n".join(parts)
 
 
 def ollama_models():
-    result = run(["docker", "exec", "ollama", "ollama", "list"])
+    result = run(["docker", "exec", OLLAMA_CONTAINER, "ollama", "list"])
     return result.returncode, result.stdout.rstrip()
 
 
 with open(REPORT, "w", encoding="utf-8") as out:
     def emit(value=""):
         print(value, file=out, flush=True)
+
+    def progress(value):
+        print(value, flush=True)
+        emit("[PROGRESS] " + value)
 
     emit("=== ATOMIC MODEL BENCHMARK ===")
     emit("started=" + datetime.now().astimezone().isoformat())
@@ -77,8 +83,10 @@ with open(REPORT, "w", encoding="utf-8") as out:
             emit(f"CASE={case_name}")
             emit("PROMPT=" + prompt)
             emit("=" * 100)
+            progress(f"START {model} / {case_name}")
             env = os.environ.copy()
             env["OLLAMA_MODEL"] = model
+            env["OLLAMA_URL"] = OLLAMA_URL
             before = snapshot()
             emit("--- RESOURCE BEFORE ---")
             emit(before)
@@ -97,6 +105,7 @@ with open(REPORT, "w", encoding="utf-8") as out:
                 "exit": proc.returncode,
                 "wall_s": round(elapsed, 3),
             })
+            progress(f"DONE  {model} / {case_name} rc={proc.returncode} wall={elapsed:.1f}s")
 
     emit()
     emit("=== MACHINE SUMMARY ===")
