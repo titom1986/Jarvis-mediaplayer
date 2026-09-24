@@ -105,7 +105,7 @@ def genre(name, media_type, source=None):
     return _store(ids, media_type, f"genre:{name}")
 
 
-def keyword(name, media_type, source=None):
+def keyword(name, media_type, source=None, aliases=None):
     if source:
         try:
             value = _get(source)
@@ -113,10 +113,10 @@ def keyword(name, media_type, source=None):
             return {"error": str(exc)}
         if value["media_type"] != media_type:
             return {"error": "source handle has different media type"}
-        wanted = media_search._norm(name)
+        wanted = {media_search._norm(v) for v in [name, *(aliases or [])] if v}
         return _filter_existing(
             source,
-            lambda item: wanted in {media_search._norm(v) for v in item.get("keywords", [])},
+            lambda item: bool(wanted & {media_search._norm(v) for v in item.get("keywords", [])}),
             f"keyword:{name}",
         )
     if media_search._resolve_keyword_ids([name]) is None:
@@ -164,7 +164,28 @@ def estimate_constraint(kind, args):
     elif kind == "catalog_keyword":
         if media_search._resolve_keyword_ids([args["name"]]) is None:
             return {"error": f"unresolved keyword: {args['name']}"}
-        group["keywords"] = [args["name"]]
+        names = [args["name"], *(args.get("aliases") or [])]
+        resolved = []
+        for candidate in names:
+            ids = media_search._resolve_keyword_ids([candidate])
+            if ids:
+                resolved.extend(ids)
+        if not resolved:
+            return {"error": f"unresolved keyword: {args['name']}"}
+        # Concept aliases are alternatives, so estimate their union rather than
+        # treating them as an AND conjunction.
+        counts = []
+        for keyword_id in dict.fromkeys(resolved):
+            result = seerr.discover(media_type, page=1, keyword_ids=[keyword_id])
+            if "error" in result:
+                return {"error": result["error"]}
+            value = result.get("totalResults")
+            if value is None:
+                value = result.get("total_results")
+            if value is None:
+                value = len(result.get("results", []))
+            counts.append(int(value))
+        return {"count": sum(counts), "keyword_ids": list(dict.fromkeys(resolved))}
     elif kind == "catalog_years":
         group["dates"] = [{"from": args["year_from"], "to": args["year_to"]}]
     else:
@@ -210,11 +231,25 @@ def materialize_constraint(kind, args, source=None, seed_ids=None):
         if kind == "catalog_genre":
             return genre(args["name"], media_type, source)
         if kind == "catalog_keyword":
-            return keyword(args["name"], media_type, source)
+            return keyword(args["name"], media_type, source, aliases=args.get("aliases"))
         if kind == "catalog_years":
             return years(args["year_from"], args["year_to"], media_type, source)
         return {"error": f"unsupported constraint: {kind}"}
 
+    if kind == "catalog_keyword" and args.get("_keyword_ids"):
+        ids = set()
+        for keyword_id in args["_keyword_ids"]:
+            page = 1
+            while page <= 100:
+                result = seerr.discover(media_type, page=page, keyword_ids=[keyword_id])
+                if "error" in result:
+                    return {"error": result["error"]}
+                ids.update(item["id"] for item in result.get("results", []) if item.get("id"))
+                total_pages = min(int(result.get("totalPages") or result.get("total_pages") or 1), 100)
+                if page >= total_pages:
+                    break
+                page += 1
+        return _store(ids, media_type, f"keyword:{args['name']}")
     if seed_ids is not None:
         label = kind.replace("catalog_", "") + ":seed"
         return _store(seed_ids, media_type, label)
@@ -223,7 +258,7 @@ def materialize_constraint(kind, args, source=None, seed_ids=None):
     if kind == "catalog_genre":
         return genre(args["name"], media_type)
     if kind == "catalog_keyword":
-        return keyword(args["name"], media_type)
+        return keyword(args["name"], media_type, aliases=args.get("aliases"))
     if kind == "catalog_years":
         return years(args["year_from"], args["year_to"], media_type)
     return {"error": f"unsupported constraint: {kind}"}
@@ -274,8 +309,11 @@ def execute_constraint_group(entries, source=None):
         estimates, key=lambda x: (x[0], x[1])
     )
     started = time.perf_counter()
+    seed_materialize_args = dict(seed_args)
+    if seed_estimate.get("keyword_ids"):
+        seed_materialize_args["_keyword_ids"] = seed_estimate["keyword_ids"]
     current = materialize_constraint(
-        seed_kind, seed_args, seed_ids=seed_estimate.get("seed_ids")
+        seed_kind, seed_materialize_args, seed_ids=seed_estimate.get("seed_ids")
     )
     _trace("seed", kind=seed_kind, args=seed_args, estimated_count=seed_estimate["count"], actual_count=current.get("count"), set=current.get("set"), wall_s=round(time.perf_counter() - started, 3), error=current.get("error"))
     if current.get("error"):
@@ -414,6 +452,7 @@ GENRE_TOOL = _tool(
     "Declare one movie or TV genre constraint. Use the canonical catalogue genre name, normally English (for example Science Fiction). Multiple constraint calls may be emitted together; Python composes them deterministically.",
     {
         "name": {"type": "string"},
+        "aliases": {"type": "array", "items": {"type": "string"}, "maxItems": 5, "description": "Optional catalogue keyword labels that mean the same requested concept. They are OR alternatives, not extra constraints. Supply useful English lexical variants when the user's concept can have several catalogue labels."},
         "media_type": {"type": "string", "enum": ["movie", "tv"]},
         "source": {"type": "string", "description": "Optional existing candidate-set handle to refine."},
         "group": {"type": "integer", "minimum": 0, "description": "AND group number. Use the same group for simultaneous constraints; different groups only for explicit OR alternatives. Default 0."},
