@@ -219,7 +219,7 @@ def _tool(name, description, properties, required):
 
 PERSON_TOOL = _tool(
     "catalog_person",
-    "Create a movie or TV candidate set containing works with one person.",
+    "Create a movie or TV candidate set containing works with one person. If the request contains a person, prefer this as the first catalogue call; then refine its returned set handle one constraint at a time.",
     {
         "name": {"type": "string"},
         "media_type": {"type": "string", "enum": ["movie", "tv"]},
@@ -229,7 +229,7 @@ PERSON_TOOL = _tool(
 
 GENRE_TOOL = _tool(
     "catalog_genre",
-    "Create a movie or TV candidate set for one genre.",
+    "Create or refine a movie or TV candidate set for one genre. If a candidate-set handle already exists, always pass it as source. Build constrained searches one catalogue call at a time so each next call can reuse the previous handle.",
     {
         "name": {"type": "string"},
         "media_type": {"type": "string", "enum": ["movie", "tv"]},
@@ -240,7 +240,7 @@ GENRE_TOOL = _tool(
 
 KEYWORD_TOOL = _tool(
     "catalog_keyword",
-    "Create a movie or TV candidate set for one theme, concept or keyword.",
+    "Create or refine a movie or TV candidate set for one theme, concept or keyword. If a candidate-set handle already exists, always pass it as source. Build constrained searches one catalogue call at a time so each next call can reuse the previous handle.",
     {
         "name": {"type": "string"},
         "media_type": {"type": "string", "enum": ["movie", "tv"]},
@@ -251,7 +251,7 @@ KEYWORD_TOOL = _tool(
 
 YEARS_TOOL = _tool(
     "catalog_years",
-    "Create a candidate set for an inclusive release-year interval.",
+    "Create or refine a candidate set for an inclusive release-year interval. If a candidate-set handle already exists, always pass it as source. Build constrained searches one catalogue call at a time so each next call can reuse the previous handle.",
     {
         "year_from": {"type": "integer"},
         "year_to": {"type": "integer"},
