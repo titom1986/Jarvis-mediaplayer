@@ -105,7 +105,7 @@ def run_agent(question):
         request_payload.update(model_payload)
 
         call_started = time.perf_counter()
-        response = requests.post(OLLAMA_URL, json=request_payload, timeout=180)
+        response = requests.post(OLLAMA_URL, json=request_payload, timeout=None)
         response.raise_for_status()
         payload = response.json()
         perf = _ollama_perf(payload, time.perf_counter() - call_started)
