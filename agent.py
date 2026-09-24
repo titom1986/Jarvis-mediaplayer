@@ -67,7 +67,7 @@ def _compose_catalog_batch(entries):
     include_groups = {}
     exclude_groups = {}
 
-    for args, result in entries:
+    for index, (args, result) in enumerate(entries):
         if result.get("error"):
             return {"error": result["error"]}
         if result.get("found") is False:
@@ -75,8 +75,15 @@ def _compose_catalog_batch(entries):
         handle = result.get("set")
         if not handle:
             return {"error": f"catalogue constraint produced no set: {result}"}
-        group = int(args.get("group", 0))
-        target = exclude_groups if args.get("exclude", False) else include_groups
+        is_exclude = args.get("exclude", False)
+        # Includes default to one AND group. Independent exclusions default to
+        # separate groups, therefore their union is removed (A - (E1 OR E2)).
+        # An explicit shared group can still express a compound exclusion.
+        if is_exclude and "group" not in args:
+            group = f"exclude-{index}"
+        else:
+            group = int(args.get("group", 0))
+        target = exclude_groups if is_exclude else include_groups
         target.setdefault(group, []).append(handle)
 
     if not include_groups:
