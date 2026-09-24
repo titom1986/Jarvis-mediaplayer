@@ -1,0 +1,135 @@
+=== VERSION ===
+07465f4 Trace Seerr HTTP calls and latency
+
+=== SYSTEM BEFORE ===
+Thu Sep 24 10:33:04 AM -01 2026
+ 10:33:04 up 63 days, 28 min,  1 user,  load average: 0.40, 1.22, 1.20
+               total        used        free      shared  buff/cache   available
+Mem:            15Gi       5.5Gi       176Mi       361Mi       9.9Gi       9.4Gi
+Swap:          4.0Gi       739Mi       3.3Gi
+
+CONTAINER ID   NAME      CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O         PIDS
+6485f4442da3   ollama    0.00%     5.125GiB / 15.56GiB   32.93%    4.59GB / 66.7MB   10.7GB / 4.52GB   41
+
+
+=== DETERMINISTIC TESTS ===
+test_best_seed_is_selected_by_count_not_semantic_type (test_agent_routing.AgentRoutingTests) ... ok
+test_catalog_refinements_forward_source (test_agent_routing.AgentRoutingTests) ... ok
+test_catalog_set_algebra_routing (test_agent_routing.AgentRoutingTests) ... ok
+test_exclusion_refines_existing_subset_without_broad_materialization (test_agent_routing.AgentRoutingTests) ... ok
+test_genre_estimate_reads_only_first_discover_page (test_agent_routing.AgentRoutingTests) ... ok
+test_parallel_constraint_batch_and_or_exclude (test_agent_routing.AgentRoutingTests) ... ok
+test_plex_radarr_sonarr_routing (test_agent_routing.AgentRoutingTests) ... ok
+test_unknown_tool_is_nonfatal (test_agent_routing.AgentRoutingTests) ... ok
+test_catalogue_label_normalization_is_lexical_only (test_catalog_sets.CatalogSetTests) ... ok
+test_first_broad_constraint_can_use_discover (test_catalog_sets.CatalogSetTests) ... ok
+test_mixed_media_types_are_rejected (test_catalog_sets.CatalogSetTests) ... ok
+test_people_first_refinement_never_broad_scans (test_catalog_sets.CatalogSetTests) ... ok
+test_person_returns_handle_not_ids (test_catalog_sets.CatalogSetTests) ... ok
+test_representative_end_to_end_set_path (test_catalog_sets.CatalogSetTests) ... ok
+test_set_algebra_keeps_cardinality_out_of_model_context (test_catalog_sets.CatalogSetTests) ... ok
+test_unknown_handle_is_safe_error (test_catalog_sets.CatalogSetTests) ... ok
+test_unresolved_genre_is_error_not_false_empty_set (test_catalog_sets.CatalogSetTests) ... ok
+test_and_inside_group (test_media_search.MediaSearchTests) ... ok
+test_exclusion_group (test_media_search.MediaSearchTests) ... ok
+test_or_between_groups (test_media_search.MediaSearchTests) ... ok
+test_people_is_optional_but_supported (test_media_search.MediaSearchTests) ... ok
+test_rating_sort (test_media_search.MediaSearchTests) ... ok
+test_realistic_broad_discover_dataset_paginates_without_people (test_media_search.MediaSearchTests) ... ok
+test_realistic_people_first_dataset_filters_before_returning (test_media_search.MediaSearchTests) ... ok
+test_without_people_and_pagination (test_media_search.MediaSearchTests) ... ok
+test_accepts_exclusive_semantic_classification (test_planner.PlannerTests) ... ok
+test_compile_cumulative_search_as_one_and_group (test_planner.PlannerTests) ... ok
+test_compile_explicit_alternatives_as_or_groups (test_planner.PlannerTests) ... ok
+test_extractor_uses_json_schema_and_temperature_zero (test_planner.PlannerTests) ... ok
+test_rejects_duplicate_semantic_classification (test_planner.PlannerTests) ... ok
+test_status_exposes_watched_state (test_plex.PlexTests) ... ok
+test_request_movie_does_not_duplicate_existing_movie (test_radarr_request.RadarrRequestTests) ... ok
+test_request_movie_uses_configured_default_profile (test_radarr_request.RadarrRequestTests) ... ok
+test_request_movie_uses_french_profile_only_when_requested (test_radarr_request.RadarrRequestTests) ... ok
+
+----------------------------------------------------------------------
+Ran 34 tests in 0.078s
+
+OK
+[CATALOG] estimate {"args": {"media_type": "movie", "name": "A"}, "count": 5000, "error": null, "kind": "catalog_person", "seed_ids": null, "wall_s": 0.0}
+[CATALOG] estimate {"args": {"media_type": "movie", "year_from": 1990, "year_to": 1999}, "count": 12, "error": null, "kind": "catalog_years", "seed_ids": null, "wall_s": 0.0}
+[CATALOG] estimate {"args": {"media_type": "movie", "name": "Science Fiction"}, "count": 300, "error": null, "kind": "catalog_genre", "seed_ids": null, "wall_s": 0.0}
+[CATALOG] seed {"actual_count": 12, "args": {"media_type": "movie", "year_from": 1990, "year_to": 1999}, "error": null, "estimated_count": 12, "kind": "catalog_years", "set": "s1", "wall_s": 0.0}
+[CATALOG] refine {"after": 2, "args": {"media_type": "movie", "name": "Science Fiction"}, "before": 12, "error": null, "kind": "catalog_genre", "wall_s": 0.0}
+[CATALOG] refine {"after": 3, "args": {"media_type": "movie", "name": "A"}, "before": 2, "error": null, "kind": "catalog_person", "wall_s": 0.0}
+[CATALOG] refine_group_start {"constraints": 1, "source": "s1", "source_count": 3}
+[CATALOG] refine {"after": 1, "args": {"media_type": "movie", "year_from": 1998, "year_to": 1998}, "before": 3, "error": null, "kind": "catalog_years", "wall_s": 0.0}
+[PLAN] batch {"exclude_groups": {"exclude-2": ["catalog_years"]}, "include_groups": {"0": ["catalog_person"], "1": ["catalog_genre"]}}
+[PLAN] group_start {"constraints": [{"args": {"group": 0, "media_type": "movie", "name": "A"}, "tool": "catalog_person"}], "group": "0", "source": null}
+[PLAN] group_done {"group": "0", "result": {"count": 3, "label": "include0", "set": "s1"}, "source": null}
+[PLAN] group_start {"constraints": [{"args": {"group": 1, "media_type": "movie", "name": "Action"}, "tool": "catalog_genre"}], "group": "1", "source": null}
+[PLAN] group_done {"group": "1", "result": {"count": 1, "label": "include1", "set": "s2"}, "source": null}
+[PLAN] included {"count": 4, "label": "union", "set": "s4"}
+[PLAN] group_start {"constraints": [{"args": {"exclude": true, "media_type": "movie", "year_from": 1998, "year_to": 1998}, "tool": "catalog_years"}], "group": "exclude-2", "source": "s4"}
+[PLAN] group_done {"group": "exclude-2", "result": {"count": 3, "label": "banned", "set": "s3"}, "source": "s4"}
+[PLAN] excluded_union {"count": 3, "set": "s3"}
+[PLAN] final_after_exclusions {"count": 1, "label": "difference", "set": "s5"}
+[CATALOG] results_start {"candidate_count": 7, "limit": 20, "set": "s8"}
+[CATALOG] results_done {"candidate_count": 7, "detail_count": 7, "returned_count": 7, "set": "s8", "wall_s": 0.001}
+=== TEST EXIT CODE: 0 ===
+
+=== REAL AGENT SMOKE ===
+Seed Agent - qwen3:4b-instruct
+
+
+--- Agent ---
+[PERF] agent_llm_1 {"wall_s": 74.342, "load_ms": 3.4, "prompt_eval_ms": 557.9, "eval_ms": 73750.8, "prompt_tokens": 1680, "output_tokens": 128}
+> catalog_genre({'name': 'Science Fiction', 'media_type': 'movie'})
+> catalog_person({'name': 'Tom Cruise', 'media_type': 'movie'})
+> catalog_years({'year_from': 2000, 'year_to': 2015, 'media_type': 'movie'})
+> catalog_keyword({'name': 'extraterrestrials', 'media_type': 'movie'})
+[PLAN] batch {"exclude_groups": {}, "include_groups": {"0": ["catalog_genre", "catalog_person", "catalog_years", "catalog_keyword"]}}
+[PLAN] group_start {"constraints": [{"args": {"media_type": "movie", "name": "Science Fiction"}, "tool": "catalog_genre"}, {"args": {"media_type": "movie", "name": "Tom Cruise"}, "tool": "catalog_person"}, {"args": {"media_type": "movie", "year_from": 2000, "year_to": 2015}, "tool": "catalog_years"}, {"args": {"media_type": "movie", "name": "extraterrestrials"}, "tool": "catalog_keyword"}], "group": "0", "source": null}
+[SEERR] {"params": {"language": "en"}, "path": "genres/movie", "status": 200, "wall_s": 0.007}
+[SEERR] {"params": {"language": "en"}, "path": "genres/movie", "status": 200, "wall_s": 0.007}
+[SEERR] {"params": {"genre": "878", "page": 1, "sortBy": "popularity.desc"}, "path": "discover/movies", "status": 200, "wall_s": 0.021}
+[CATALOG] estimate {"args": {"media_type": "movie", "name": "Science Fiction"}, "count": 20001, "error": null, "kind": "catalog_genre", "seed_ids": null, "wall_s": 0.036}
+[SEERR] {"params": {"query": "Tom%20Cruise"}, "path": "search", "status": 200, "wall_s": 0.022}
+[SEERR] {"params": null, "path": "person/500/combined_credits", "status": 200, "wall_s": 0.035}
+[CATALOG] estimate {"args": {"media_type": "movie", "name": "Tom Cruise"}, "count": 97, "error": null, "kind": "catalog_person", "seed_ids": 97, "wall_s": 0.06}
+[SEERR] {"params": {"page": 1, "primaryReleaseDateGte": "2000-01-01", "primaryReleaseDateLte": "2015-12-31", "sortBy": "popularity.desc"}, "path": "discover/movies", "status": 200, "wall_s": 0.019}
+[CATALOG] estimate {"args": {"media_type": "movie", "year_from": 2000, "year_to": 2015}, "count": 20001, "error": null, "kind": "catalog_years", "seed_ids": null, "wall_s": 0.019}
+[SEERR] {"params": {"page": 1, "query": "extraterrestrials"}, "path": "search/keyword", "status": 200, "wall_s": 0.009}
+[SEERR] {"params": {"page": 1, "query": "extraterrestrials"}, "path": "search/keyword", "status": 200, "wall_s": 0.008}
+[SEERR] {"params": {"keywords": "362684", "page": 1, "sortBy": "popularity.desc"}, "path": "discover/movies", "status": 200, "wall_s": 0.022}
+[CATALOG] estimate {"args": {"media_type": "movie", "name": "extraterrestrials"}, "count": 2, "error": null, "kind": "catalog_keyword", "seed_ids": null, "wall_s": 0.04}
+[SEERR] {"params": {"page": 1, "query": "extraterrestrials"}, "path": "search/keyword", "status": 200, "wall_s": 0.008}
+[SEERR] {"params": {"page": 1, "query": "extraterrestrials"}, "path": "search/keyword", "status": 200, "wall_s": 0.008}
+[SEERR] {"params": {"keywords": "362684", "page": 1, "sortBy": "popularity.desc"}, "path": "discover/movies", "status": 200, "wall_s": 0.011}
+[CATALOG] seed {"actual_count": 2, "args": {"media_type": "movie", "name": "extraterrestrials"}, "error": null, "estimated_count": 2, "kind": "catalog_keyword", "set": "s1", "wall_s": 0.028}
+[SEERR] {"params": {"query": "Tom%20Cruise"}, "path": "search", "status": 200, "wall_s": 0.012}
+[SEERR] {"params": null, "path": "person/500/combined_credits", "status": 200, "wall_s": 0.024}
+[CATALOG] refine {"after": 0, "args": {"media_type": "movie", "name": "Tom Cruise"}, "before": 2, "error": null, "kind": "catalog_person", "wall_s": 0.04}
+[PLAN] group_done {"group": "0", "result": {"count": 0, "label": "person:Tom Cruise", "set": "s2"}, "source": null}
+[PLAN] included {"count": 0, "set": "s2"}
+< composed {"set": "s2", "count": 0}
+[PERF] catalog_batch {"wall_s": 0.223}
+[PERF] agent_llm_2 {"wall_s": 85.676, "load_ms": 3.6, "prompt_eval_ms": 31207.5, "eval_ms": 54349.3, "prompt_tokens": 1868, "output_tokens": 86}
+[PERF] total {"wall_s": 160.242, "ollama_calls": 2, "tool_calls": 4}
+
+═══ RÉPONSE ═══
+
+I have applied the constraints for a science-fiction film with Tom Cruise, released between 2000 and 2015, featuring extraterrestrials. However, the search result for the keyword "extraterrestrials" returned zero matches, indicating no films in the database meet all these criteria. 
+
+If you'd like, I can refine the search or explore alternative options. Let me know!
+
+=== SMOKE EXIT CODE: 0 ===
+
+=== SYSTEM AFTER ===
+Thu Sep 24 10:35:49 AM -01 2026
+ 10:35:49 up 63 days, 31 min,  1 user,  load average: 3.98, 2.48, 1.69
+               total        used        free      shared  buff/cache   available
+Mem:            15Gi       5.5Gi       178Mi       360Mi       9.9Gi       9.4Gi
+Swap:          4.0Gi       739Mi       3.3Gi
+
+CONTAINER ID   NAME      CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O         PIDS
+6485f4442da3   ollama    0.00%     5.103GiB / 15.56GiB   32.79%    4.59GB / 66.8MB   10.7GB / 4.52GB   41
+
+
+=== END ===
