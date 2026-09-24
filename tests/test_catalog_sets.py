@@ -154,6 +154,29 @@ class CatalogSetTests(unittest.TestCase):
         })
         search_keyword.assert_called_once_with("alien")
 
+    @patch("tools.catalog_sets.seerr.discover")
+    @patch("tools.catalog_sets.media_search._resolve_keyword_ids")
+    @patch("tools.catalog_sets.seerr.search_keyword")
+    def test_grounded_keyword_ids_are_reused_without_label_relookup(self, search_keyword, resolve_keyword, discover):
+        search_keyword.return_value = {"results": [
+            {"id": 9951, "name": "alien"},
+            {"id": 192962, "name": "alien attack"},
+        ]}
+        catalog_sets.keyword_vocabulary("alien")
+        discover.side_effect = [
+            {"totalResults": 100, "results": []},
+            {"totalResults": 20, "results": []},
+        ]
+
+        result = catalog_sets.estimate_constraint("catalog_keyword", {
+            "name": "alien", "aliases": ["alien attack"], "media_type": "movie"
+        })
+
+        self.assertEqual(result["keyword_ids"], [9951, 192962])
+        self.assertEqual(result["count"], 120)
+        resolve_keyword.assert_not_called()
+        self.assertEqual(discover.call_count, 2)
+
     @patch("tools.catalog_sets.seerr.media_details")
     def test_keyword_aliases_are_or_alternatives_when_refining(self, details):
         base = catalog_sets._store({1, 2, 3}, "movie", "base")
