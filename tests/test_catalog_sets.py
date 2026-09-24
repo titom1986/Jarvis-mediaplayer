@@ -130,6 +130,15 @@ class CatalogSetTests(unittest.TestCase):
         self.assertNotIn(5, [x["id"] for x in ranked["results"]])
         self.assertNotIn(6, [x["id"] for x in ranked["results"]])
         self.assertNotIn(7, [x["id"] for x in ranked["results"]])
+        # Final tool payload stays compact: semantic filtering fields and synopsis
+        # are internal mechanics and must not be sent back into the LLM context.
+        self.assertEqual(
+            set(ranked["results"][0]),
+            {"mediaType", "id", "title", "releaseDate", "rating", "voteCount"},
+        )
+        self.assertNotIn("overview", ranked["results"][0])
+        self.assertNotIn("genres", ranked["results"][0])
+        self.assertNotIn("keywords", ranked["results"][0])
 
     def test_unknown_handle_is_safe_error(self):
         self.assertIn("error", catalog_sets.combine("intersection", ["missing"]))
