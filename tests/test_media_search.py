@@ -110,7 +110,7 @@ class MediaSearchTests(unittest.TestCase):
                     "genres": ["Science Fiction"],
                     "dates": [{"from": 1990, "to": 1999}],
                 }],
-                exclude=[{"keywords": ["dystopia"]}],
+                exclude=[{"keywords": ["dystopia"], "dates": [{"from": 1990, "to": 1999}]}],
             )
 
         self.assertFalse(discover.called, "Une recherche avec personne ne doit pas scanner Discover")
