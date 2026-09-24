@@ -1,11 +1,15 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from time import perf_counter
+import re
 
 from tools import seerr
 
 
 def _norm(value):
-    return str(value or "").strip().casefold()
+    # Lexical normalization only: catalogue labels such as "Science Fiction"
+    # and model output such as "science-fiction" should resolve identically.
+    value = str(value or "").strip().casefold()
+    return re.sub(r"[\\s_-]+", " ", value)
 
 
 def _resolve_person(name):
