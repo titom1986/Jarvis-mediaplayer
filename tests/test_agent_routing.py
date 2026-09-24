@@ -69,15 +69,17 @@ class AgentRoutingTests(unittest.TestCase):
         b = agent.catalog_sets._store({2, 3, 4, 5}, "movie", "b")
         alt = agent.catalog_sets._store({9}, "movie", "alt")
         banned = agent.catalog_sets._store({3, 9}, "movie", "banned")
+        banned2 = agent.catalog_sets._store({4}, "movie", "banned2")
 
         result = agent._compose_catalog_batch([
             ({"group": 0}, a),
             ({"group": 0}, b),
             ({"group": 1}, alt),
-            ({"group": 0, "exclude": True}, banned),
+            ({"exclude": True}, banned),
+            ({"exclude": True}, banned2),
         ])
 
-        self.assertEqual(agent.catalog_sets._get(result["set"])["ids"], {2, 4})
+        self.assertEqual(agent.catalog_sets._get(result["set"])["ids"], {2})
 
     def test_parallel_batch_has_no_semantic_type_priority(self):
         # The smallest set may represent any semantic constraint. Composition
