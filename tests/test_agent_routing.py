@@ -64,36 +64,54 @@ class AgentRoutingTests(unittest.TestCase):
             agent.execute_tool("sonarr_status", {"title": "Series"})
             sonarr.assert_called_once_with("Series")
 
-    def test_parallel_constraint_batch_and_or_exclude(self):
-        a = agent.catalog_sets._store({1, 2, 3, 4}, "movie", "a")
-        b = agent.catalog_sets._store({2, 3, 4, 5}, "movie", "b")
-        alt = agent.catalog_sets._store({9}, "movie", "alt")
-        banned = agent.catalog_sets._store({3, 9}, "movie", "banned")
-        banned2 = agent.catalog_sets._store({4}, "movie", "banned2")
+    @patch("agent.catalog_sets.execute_constraint_group")
+    def test_parallel_constraint_batch_and_or_exclude(self, execute_group):
+        include0 = agent.catalog_sets._store({2, 3, 4}, "movie", "include0")
+        include1 = agent.catalog_sets._store({9}, "movie", "include1")
+        banned = agent.catalog_sets._store({3, 4, 9}, "movie", "banned")
+        execute_group.side_effect = [include0, include1, banned]
 
         result = agent._compose_catalog_batch([
-            ({"group": 0}, a),
-            ({"group": 0}, b),
-            ({"group": 1}, alt),
-            ({"exclude": True}, banned),
-            ({"exclude": True}, banned2),
+            ("catalog_person", {"name": "A", "media_type": "movie", "group": 0}),
+            ("catalog_genre", {"name": "Action", "media_type": "movie", "group": 1}),
+            ("catalog_years", {"year_from": 1998, "year_to": 1998, "media_type": "movie", "exclude": True}),
         ])
-
         self.assertEqual(agent.catalog_sets._get(result["set"])["ids"], {2})
 
-    def test_parallel_batch_has_no_semantic_type_priority(self):
-        # The smallest set may represent any semantic constraint. Composition
-        # depends only on set contents/cardinality, never person/genre/year rank.
-        large = agent.catalog_sets._store(range(100), "movie", "genre")
-        small = agent.catalog_sets._store({7, 8}, "movie", "years")
-        person = agent.catalog_sets._store({8, 9, 10}, "movie", "person")
+    @patch("tools.catalog_sets.materialize_constraint")
+    @patch("tools.catalog_sets.estimate_constraint")
+    def test_best_seed_is_selected_by_count_not_semantic_type(self, estimate, materialize):
+        # year is cheapest here; another fixture can make any other type win.
+        estimate.side_effect = [
+            {"count": 5000}, {"count": 12}, {"count": 300}
+        ]
+        seed = agent.catalog_sets._store(set(range(12)), "movie", "year-seed")
+        after_person = agent.catalog_sets._store({1, 2, 3}, "movie", "person-refined")
+        after_genre = agent.catalog_sets._store({2, 3}, "movie", "genre-refined")
+        materialize.side_effect = [seed, after_genre, after_person]
 
-        result = agent._compose_catalog_batch([
-            ({"group": 0}, large),
-            ({"group": 0}, small),
-            ({"group": 0}, person),
+        result = agent.catalog_sets.execute_constraint_group([
+            ("catalog_person", {"name": "A", "media_type": "movie"}),
+            ("catalog_years", {"year_from": 1990, "year_to": 1999, "media_type": "movie"}),
+            ("catalog_genre", {"name": "Science Fiction", "media_type": "movie"}),
         ])
-        self.assertEqual(agent.catalog_sets._get(result["set"])["ids"], {8})
+        first = materialize.call_args_list[0]
+        self.assertEqual(first.args[0], "catalog_years")
+        self.assertEqual(result["set"], after_person["set"])
+
+    @patch("tools.catalog_sets.seerr.discover")
+    @patch("tools.catalog_sets.media_search._resolve_genre_ids", return_value=[878])
+    @patch("tools.catalog_sets.media_search._resolve_keyword_ids", return_value=[])
+    def test_genre_estimate_reads_only_first_discover_page(self, kw, genre, discover):
+        discover.return_value = {
+            "page": 1, "totalPages": 100, "totalResults": 1987,
+            "results": [{"id": i} for i in range(20)]
+        }
+        result = agent.catalog_sets.estimate_constraint(
+            "catalog_genre", {"name": "Science Fiction", "media_type": "movie"}
+        )
+        self.assertEqual(result["count"], 1987)
+        self.assertEqual(discover.call_count, 1)
 
     def test_unknown_tool_is_nonfatal(self):
         self.assertIn("error", agent.execute_tool("does_not_exist", {}))
