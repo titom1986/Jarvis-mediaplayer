@@ -5,6 +5,9 @@ import agent
 
 
 class AgentRoutingTests(unittest.TestCase):
+    def setUp(self):
+        agent.catalog_sets.reset()
+
     def test_catalog_refinements_forward_source(self):
         with patch("agent.catalog_sets.genre", return_value={"set": "s2"}) as genre:
             agent.execute_tool("catalog_genre", {
@@ -60,6 +63,35 @@ class AgentRoutingTests(unittest.TestCase):
         with patch("agent.sonarr.status", return_value={"found": False}) as sonarr:
             agent.execute_tool("sonarr_status", {"title": "Series"})
             sonarr.assert_called_once_with("Series")
+
+    def test_parallel_constraint_batch_and_or_exclude(self):
+        a = agent.catalog_sets._store({1, 2, 3, 4}, "movie", "a")
+        b = agent.catalog_sets._store({2, 3, 4, 5}, "movie", "b")
+        alt = agent.catalog_sets._store({9}, "movie", "alt")
+        banned = agent.catalog_sets._store({3, 9}, "movie", "banned")
+
+        result = agent._compose_catalog_batch([
+            ({"group": 0}, a),
+            ({"group": 0}, b),
+            ({"group": 1}, alt),
+            ({"group": 0, "exclude": True}, banned),
+        ])
+
+        self.assertEqual(agent.catalog_sets._get(result["set"])["ids"], {2, 4})
+
+    def test_parallel_batch_has_no_semantic_type_priority(self):
+        # The smallest set may represent any semantic constraint. Composition
+        # depends only on set contents/cardinality, never person/genre/year rank.
+        large = agent.catalog_sets._store(range(100), "movie", "genre")
+        small = agent.catalog_sets._store({7, 8}, "movie", "years")
+        person = agent.catalog_sets._store({8, 9, 10}, "movie", "person")
+
+        result = agent._compose_catalog_batch([
+            ({"group": 0}, large),
+            ({"group": 0}, small),
+            ({"group": 0}, person),
+        ])
+        self.assertEqual(agent.catalog_sets._get(result["set"])["ids"], {8})
 
     def test_unknown_tool_is_nonfatal(self):
         self.assertIn("error", agent.execute_tool("does_not_exist", {}))
