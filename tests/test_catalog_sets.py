@@ -8,6 +8,12 @@ class CatalogSetTests(unittest.TestCase):
     def setUp(self):
         catalog_sets.reset()
 
+    def test_catalogue_label_normalization_is_lexical_only(self):
+        self.assertEqual(
+            catalog_sets.media_search._norm("science-fiction"),
+            catalog_sets.media_search._norm("Science Fiction"),
+        )
+
     @patch("tools.catalog_sets.media_search._resolve_person")
     @patch("tools.catalog_sets.media_search._credits_ids")
     def test_person_returns_handle_not_ids(self, credits, resolve):
