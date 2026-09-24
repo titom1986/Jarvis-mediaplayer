@@ -140,6 +140,21 @@ class CatalogSetTests(unittest.TestCase):
         self.assertNotIn("genres", ranked["results"][0])
         self.assertNotIn("keywords", ranked["results"][0])
 
+    @patch("tools.catalog_sets.seerr.media_details")
+    def test_keyword_aliases_are_or_alternatives_when_refining(self, details):
+        base = catalog_sets._store({1, 2, 3}, "movie", "base")
+        payloads = {
+            1: {"id": 1, "mediaType": "movie", "keywords": ["alien"]},
+            2: {"id": 2, "mediaType": "movie", "keywords": ["extraterrestrial"]},
+            3: {"id": 3, "mediaType": "movie", "keywords": ["space travel"]},
+        }
+        details.side_effect = lambda media_id, media_type: payloads[media_id]
+        result = catalog_sets.keyword(
+            "extraterrestrials", "movie", source=base["set"],
+            aliases=["alien", "extraterrestrial"],
+        )
+        self.assertEqual(catalog_sets._get(result["set"])["ids"], {1, 2})
+
     def test_unknown_handle_is_safe_error(self):
         self.assertIn("error", catalog_sets.combine("intersection", ["missing"]))
 
