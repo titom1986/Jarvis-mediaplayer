@@ -7,12 +7,19 @@ Handles are request-local: call reset() before each user request.
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import count
 from threading import Lock
+import json
+import time
 
 from tools import media_search, seerr
 
 _sets = {}
 _seq = count(1)
 _lock = Lock()
+
+
+def _trace(event, **fields):
+    """Diagnostic telemetry for deterministic catalogue execution; never sent to the LLM."""
+    print("[CATALOG]", event, json.dumps(fields, ensure_ascii=False, sort_keys=True))
 
 
 def reset():
@@ -240,8 +247,13 @@ def execute_constraint_group(entries, source=None):
         if src["media_type"] not in media_types:
             return {"error": "source handle has different media type"}
         current = {"set": source, "count": len(src["ids"])}
+        _trace("refine_group_start", source=source, source_count=current["count"], constraints=len(entries))
         for kind, args in entries:
+            before = current["count"]
+            started = time.perf_counter()
             current = materialize_constraint(kind, args, source=current["set"])
+            elapsed = time.perf_counter() - started
+            _trace("refine", kind=kind, args=args, before=before, after=current.get("count"), wall_s=round(elapsed, 3), error=current.get("error"))
             if current.get("error"):
                 return current
             if current.get("count") == 0:
@@ -250,7 +262,10 @@ def execute_constraint_group(entries, source=None):
 
     estimates = []
     for index, (kind, args) in enumerate(entries):
+        started = time.perf_counter()
         estimate = estimate_constraint(kind, args)
+        elapsed = time.perf_counter() - started
+        _trace("estimate", kind=kind, args=args, count=estimate.get("count"), seed_ids=len(estimate.get("seed_ids", [])) if estimate.get("seed_ids") is not None else None, wall_s=round(elapsed, 3), error=estimate.get("error"))
         if estimate.get("error"):
             return estimate
         estimates.append((estimate["count"], index, kind, args, estimate))
@@ -258,9 +273,11 @@ def execute_constraint_group(entries, source=None):
     _, seed_index, seed_kind, seed_args, seed_estimate = min(
         estimates, key=lambda x: (x[0], x[1])
     )
+    started = time.perf_counter()
     current = materialize_constraint(
         seed_kind, seed_args, seed_ids=seed_estimate.get("seed_ids")
     )
+    _trace("seed", kind=seed_kind, args=seed_args, estimated_count=seed_estimate["count"], actual_count=current.get("count"), set=current.get("set"), wall_s=round(time.perf_counter() - started, 3), error=current.get("error"))
     if current.get("error"):
         return current
 
@@ -269,7 +286,10 @@ def execute_constraint_group(entries, source=None):
     for _, index, kind, args, _ in sorted(estimates, key=lambda x: (x[0], x[1])):
         if index == seed_index:
             continue
+        before = current["count"]
+        started = time.perf_counter()
         current = materialize_constraint(kind, args, source=current["set"])
+        _trace("refine", kind=kind, args=args, before=before, after=current.get("count"), wall_s=round(time.perf_counter() - started, 3), error=current.get("error"))
         if current.get("error"):
             return current
         if current.get("count") == 0:
@@ -312,6 +332,7 @@ def subtract(source, remove):
 
 
 def results(handle, limit=10):
+    total_started = time.perf_counter()
     try:
         value = _get(handle)
     except ValueError as exc:
@@ -319,6 +340,7 @@ def results(handle, limit=10):
 
     ids = list(value["ids"])
     details = []
+    _trace("results_start", set=handle, candidate_count=len(ids), limit=limit)
 
     def inspect(media_id):
         try:
@@ -350,11 +372,13 @@ def results(handle, limit=10):
             "rating": item.get("rating"),
             "voteCount": item.get("voteCount"),
         })
-    return {
+    result = {
         "set": handle,
         "count": len(details),
         "results": compact,
     }
+    _trace("results_done", set=handle, candidate_count=len(ids), detail_count=len(details), returned_count=len(compact), wall_s=round(time.perf_counter() - total_started, 3))
+    return result
 
 
 def _tool(name, description, properties, required):
