@@ -19,7 +19,7 @@ class AgentRoutingTests(unittest.TestCase):
             agent.execute_tool("catalog_keyword", {
                 "name": "time travel", "media_type": "movie", "source": "s2"
             })
-            keyword.assert_called_once_with("time travel", "movie", "s2")
+            keyword.assert_called_once_with("time travel", "movie", "s2", aliases=None)
 
         with patch("agent.catalog_sets.years", return_value={"set": "s4"}) as years:
             agent.execute_tool("catalog_years", {
