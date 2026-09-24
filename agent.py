@@ -23,7 +23,7 @@ def execute_tool(name, args):
     if name == "catalog_genre":
         return catalog_sets.genre(args["name"], args["media_type"], args.get("source"))
     if name == "catalog_keyword":
-        return catalog_sets.keyword(args["name"], args["media_type"], args.get("source"))
+        return catalog_sets.keyword(args["name"], args["media_type"], args.get("source"), aliases=args.get("aliases"))
     if name == "catalog_years":
         return catalog_sets.years(args["year_from"], args["year_to"], args["media_type"], args.get("source"))
     if name == "catalog_combine":
