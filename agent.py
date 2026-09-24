@@ -79,10 +79,10 @@ def _compose_catalog_batch(entries):
     if not include_groups:
         return {"error": "catalogue batch has no include constraint"}
 
-    def execute_groups(groups):
+    def execute_groups(groups, source=None):
         handles = []
         for members in groups.values():
-            result = catalog_sets.execute_constraint_group(members)
+            result = catalog_sets.execute_constraint_group(members, source=source)
             if result.get("error"):
                 return result
             handles.append(result["set"])
@@ -94,8 +94,7 @@ def _compose_catalog_batch(entries):
     included = execute_groups(include_groups)
     if included.get("error") or not exclude_groups:
         return included
-    excluded = execute_groups(exclude_groups)
-    if excluded.get("error"):
+    # Exclusions can only remove included candidates, so refine each exclusion\n    # group from the included subset instead of broad-scanning the catalogue.\n    excluded = execute_groups(exclude_groups, source=included["set"])\n    if excluded.get("error"):
         return excluded
     return catalog_sets.subtract(included["set"], excluded["set"])
 
