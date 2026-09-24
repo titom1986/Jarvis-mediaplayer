@@ -230,6 +230,8 @@ PERSON_TOOL = _tool(
     {
         "name": {"type": "string"},
         "media_type": {"type": "string", "enum": ["movie", "tv"]},
+        "group": {"type": "integer", "minimum": 0, "description": "AND group number. Same group means simultaneous constraints; different groups mean explicit OR alternatives. Default 0."},
+        "exclude": {"type": "boolean", "description": "True only when explicitly excluded by the user. Default false."},
     },
     ["name", "media_type"],
 )
