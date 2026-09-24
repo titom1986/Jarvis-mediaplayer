@@ -170,8 +170,8 @@ def run_agent(question):
 
         messages.append(message)
         batch_is_constraints = (
-            len(calls) > 1
-            and all(call["function"]["name"] in CATALOG_CONSTRAINT_TOOLS for call in calls)
+            all(call["function"]["name"] in CATALOG_CONSTRAINT_TOOLS for call in calls)
+            and (len(calls) > 1 or pending_catalog_batch is not None)
         )
         batch_entries = []
         pending_tool_messages = []
