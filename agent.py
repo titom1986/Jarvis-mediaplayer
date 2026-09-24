@@ -21,11 +21,11 @@ def execute_tool(name, args):
     if name == "catalog_person":
         return catalog_sets.person(args["name"], args["media_type"])
     if name == "catalog_genre":
-        return catalog_sets.genre(args["name"], args["media_type"])
+        return catalog_sets.genre(args["name"], args["media_type"], args.get("source"))
     if name == "catalog_keyword":
-        return catalog_sets.keyword(args["name"], args["media_type"])
+        return catalog_sets.keyword(args["name"], args["media_type"], args.get("source"))
     if name == "catalog_years":
-        return catalog_sets.years(args["year_from"], args["year_to"], args["media_type"])
+        return catalog_sets.years(args["year_from"], args["year_to"], args["media_type"], args.get("source"))
     if name == "catalog_combine":
         return catalog_sets.combine(args["operation"], args["sets"])
     if name == "catalog_subtract":
@@ -68,7 +68,7 @@ def _model_config():
         "Tu es JARVIS, l'agent d'un media center. Utilise les outils pour toute "
         "information dépendant du catalogue ou des services et n'invente pas leurs données. "
         "Les outils catalog_* créent des ensembles opaques : garde leurs handles courts, "
-        "combine-les par intersection pour des contraintes simultanées, union pour des "
+        "raffine un ensemble existant avec source quand tu ajoutes une contrainte, combine par intersection pour des contraintes simultanées indépendantes, union pour des "
         "alternatives, et catalog_subtract pour une exclusion. Termine une recherche avec "
         "catalog_results. N'ajoute/télécharge un média que sur demande explicite. "
         "Réponds dans la langue de l'utilisateur.",
