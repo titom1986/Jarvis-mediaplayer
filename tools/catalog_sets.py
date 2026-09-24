@@ -13,6 +13,7 @@ import time
 from tools import media_search, seerr
 
 _sets = {}
+_keyword_vocabulary = {}
 _seq = count(1)
 _lock = Lock()
 
@@ -26,6 +27,7 @@ def reset():
     global _seq
     with _lock:
         _sets.clear()
+        _keyword_vocabulary.clear()
         _seq = count(1)
 
 
@@ -113,7 +115,9 @@ def keyword_vocabulary(query, limit=12):
     items = []
     for item in result.get("results", [])[:max(1, min(int(limit), 20))]:
         if item.get("id") and item.get("name"):
-            items.append({"id": item["id"], "name": item["name"]})
+            entry = {"id": item["id"], "name": item["name"]}
+            items.append(entry)
+            _keyword_vocabulary[media_search._norm(item["name"])] = item["id"]
     return {"query": query, "count": len(items), "keywords": items}
 
 def keyword(name, media_type, source=None, aliases=None):
@@ -176,6 +180,10 @@ def estimate_constraint(kind, args):
         names = [args["name"], *(args.get("aliases") or [])]
         resolved = []
         for candidate in names:
+            grounded_id = _keyword_vocabulary.get(media_search._norm(candidate))
+            if grounded_id is not None:
+                resolved.append(grounded_id)
+                continue
             ids = media_search._resolve_keyword_ids([candidate])
             if ids:
                 resolved.extend(ids)
