@@ -219,7 +219,7 @@ def _tool(name, description, properties, required):
 
 PERSON_TOOL = _tool(
     "catalog_person",
-    "Create a movie or TV candidate set containing works with one person. If the request contains a person, prefer this as the first catalogue call; then refine its returned set handle one constraint at a time.",
+    "Declare one person constraint for a movie or TV search. Multiple constraint calls may be emitted together; Python composes them deterministically.",
     {
         "name": {"type": "string"},
         "media_type": {"type": "string", "enum": ["movie", "tv"]},
@@ -229,34 +229,34 @@ PERSON_TOOL = _tool(
 
 GENRE_TOOL = _tool(
     "catalog_genre",
-    "Create or refine a movie or TV candidate set for one genre. If a candidate-set handle already exists, always pass it as source. Build constrained searches one catalogue call at a time so each next call can reuse the previous handle.",
+    "Declare one movie or TV genre constraint. Use the canonical catalogue genre name, normally English (for example Science Fiction). Multiple constraint calls may be emitted together; Python composes them deterministically.",
     {
         "name": {"type": "string"},
         "media_type": {"type": "string", "enum": ["movie", "tv"]},
-        "source": {"type": "string", "description": "Optional existing candidate-set handle to refine instead of scanning the whole catalogue."},
+        "source": {"type": "string", "description": "Optional existing candidate-set handle to refine."},\n        "group": {"type": "integer", "minimum": 0, "description": "AND group number. Use the same group for simultaneous constraints; different groups only for explicit OR alternatives. Default 0."},\n        "exclude": {"type": "boolean", "description": "True only when this constraint is explicitly excluded by the user. Default false."},
     },
     ["name", "media_type"],
 )
 
 KEYWORD_TOOL = _tool(
     "catalog_keyword",
-    "Create or refine a movie or TV candidate set for one theme, concept or keyword. If a candidate-set handle already exists, always pass it as source. Build constrained searches one catalogue call at a time so each next call can reuse the previous handle.",
+    "Declare one movie or TV theme/concept/keyword constraint. Use the canonical catalogue keyword, normally English. Multiple constraint calls may be emitted together; Python composes them deterministically.",
     {
         "name": {"type": "string"},
         "media_type": {"type": "string", "enum": ["movie", "tv"]},
-        "source": {"type": "string", "description": "Optional existing candidate-set handle to refine instead of scanning the whole catalogue."},
+        "source": {"type": "string", "description": "Optional existing candidate-set handle to refine."},\n        "group": {"type": "integer", "minimum": 0, "description": "AND group number. Use the same group for simultaneous constraints; different groups only for explicit OR alternatives. Default 0."},\n        "exclude": {"type": "boolean", "description": "True only when this constraint is explicitly excluded by the user. Default false."},
     },
     ["name", "media_type"],
 )
 
 YEARS_TOOL = _tool(
     "catalog_years",
-    "Create or refine a candidate set for an inclusive release-year interval. If a candidate-set handle already exists, always pass it as source. Build constrained searches one catalogue call at a time so each next call can reuse the previous handle.",
+    "Declare one inclusive release-year constraint. Multiple constraint calls may be emitted together; Python composes them deterministically.",
     {
         "year_from": {"type": "integer"},
         "year_to": {"type": "integer"},
         "media_type": {"type": "string", "enum": ["movie", "tv"]},
-        "source": {"type": "string", "description": "Optional existing candidate-set handle to refine instead of scanning the whole catalogue."},
+        "source": {"type": "string", "description": "Optional existing candidate-set handle to refine."},\n        "group": {"type": "integer", "minimum": 0, "description": "AND group number. Use the same group for simultaneous constraints; different groups only for explicit OR alternatives. Default 0."},\n        "exclude": {"type": "boolean", "description": "True only when this constraint is explicitly excluded by the user. Default false."},
     },
     ["year_from", "year_to", "media_type"],
 )
