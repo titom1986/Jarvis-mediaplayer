@@ -140,6 +140,20 @@ class CatalogSetTests(unittest.TestCase):
         self.assertNotIn("genres", ranked["results"][0])
         self.assertNotIn("keywords", ranked["results"][0])
 
+    @patch("tools.catalog_sets.seerr.search_keyword")
+    def test_keyword_vocabulary_exposes_catalogue_labels_without_semantic_choice(self, search_keyword):
+        search_keyword.return_value = {"results": [
+            {"id": 1, "name": "alien"},
+            {"id": 2, "name": "alien invasion"},
+            {"id": 3, "name": "extraterrestrial"},
+        ]}
+        result = catalog_sets.keyword_vocabulary("alien", limit=2)
+        self.assertEqual(result, {
+            "query": "alien", "count": 2,
+            "keywords": [{"id": 1, "name": "alien"}, {"id": 2, "name": "alien invasion"}],
+        })
+        search_keyword.assert_called_once_with("alien")
+
     @patch("tools.catalog_sets.seerr.media_details")
     def test_keyword_aliases_are_or_alternatives_when_refining(self, details):
         base = catalog_sets._store({1, 2, 3}, "movie", "base")
