@@ -92,6 +92,8 @@ def genre(name, media_type, source=None):
             lambda item: wanted in {media_search._norm(v) for v in item.get("genres", [])},
             f"genre:{name}",
         )
+    if media_search._resolve_genre_ids([name], media_type) is None:
+        return {"error": f"unresolved genre: {name}"}
     ids = media_search._discover_ids({"genres": [name]}, media_type)
     return _store(ids, media_type, f"genre:{name}")
 
@@ -110,6 +112,8 @@ def keyword(name, media_type, source=None):
             lambda item: wanted in {media_search._norm(v) for v in item.get("keywords", [])},
             f"keyword:{name}",
         )
+    if media_search._resolve_keyword_ids([name]) is None:
+        return {"error": f"unresolved keyword: {name}"}
     ids = media_search._discover_ids({"keywords": [name]}, media_type)
     return _store(ids, media_type, f"keyword:{name}")
 
@@ -144,8 +148,11 @@ def combine(operation, sets):
         return {"error": str(exc)}
 
     if operation == "intersection":
-        ids = values[0]["ids"].copy()
-        for value in values[1:]:
+        # Start from the smallest materialized subset. This is purely a
+        # cardinality optimization; Python assigns no semantic priority.
+        ordered = sorted(values, key=lambda value: len(value["ids"]))
+        ids = ordered[0]["ids"].copy()
+        for value in ordered[1:]:
             ids &= value["ids"]
     elif operation == "union":
         ids = set()
