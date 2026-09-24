@@ -135,6 +135,19 @@ class AgentRoutingTests(unittest.TestCase):
         self.assertEqual(result["count"], 1987)
         self.assertEqual(discover.call_count, 1)
 
+    def test_composed_catalogue_contract_requires_grounded_results(self):
+        composed = {"set": "s9", "count": 3}
+        if not composed.get("error") and composed.get("set"):
+            composed["results_loaded"] = False
+            composed["required_action"] = (
+                "The candidate set is computed but contains no media titles. "
+                "Call catalog_results with this set before naming, listing, or recommending any media. "
+                "Never infer titles from the count or from model memory."
+            )
+        self.assertFalse(composed["results_loaded"])
+        self.assertIn("catalog_results", composed["required_action"])
+        self.assertIn("Never infer titles", composed["required_action"])
+
     def test_unknown_tool_is_nonfatal(self):
         self.assertIn("error", agent.execute_tool("does_not_exist", {}))
 
