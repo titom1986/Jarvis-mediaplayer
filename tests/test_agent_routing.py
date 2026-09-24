@@ -139,10 +139,9 @@ class AgentRoutingTests(unittest.TestCase):
     @patch("agent.catalog_sets.execute_constraint_group")
     @patch("agent.requests.post")
     def test_full_agent_catalogue_chain_materializes_grounded_results(self, post, execute_group, results):
-        seed = agent.catalog_sets._store({101, 102}, "movie", "seed")
-        execute_group.return_value = seed
+        execute_group.side_effect = lambda members, source=None: agent.catalog_sets._store({101, 102}, "movie", "seed")
         results.return_value = {
-            "set": seed["set"], "count": 2,
+            "set": "s1", "count": 2,
             "results": [
                 {"mediaType": "movie", "id": 101, "title": "Alpha", "releaseDate": "2001-01-01", "rating": 8.0, "voteCount": 100},
                 {"mediaType": "movie", "id": 102, "title": "Beta", "releaseDate": "2002-01-01", "rating": 7.0, "voteCount": 90},
@@ -167,7 +166,7 @@ class AgentRoutingTests(unittest.TestCase):
 
         agent.run_agent("films avec Actor entre 2000 et 2005")
 
-        results.assert_called_once_with(seed["set"], limit=10)
+        results.assert_called_once_with("s1", limit=10)
         second_payload = post.call_args_list[1].kwargs["json"]
         tool_payloads = [
             __import__("json").loads(m["content"])
