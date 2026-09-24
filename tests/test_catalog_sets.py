@@ -57,12 +57,20 @@ class CatalogSetTests(unittest.TestCase):
         discover.assert_not_called()
         self.assertEqual(details.call_count, 225)
 
+    @patch("tools.catalog_sets.media_search._resolve_genre_ids", return_value=[878])
     @patch("tools.catalog_sets.media_search._discover_ids")
-    def test_first_broad_constraint_can_use_discover(self, discover):
+    def test_first_broad_constraint_can_use_discover(self, discover, resolve_genre):
         discover.return_value = {1, 2, 3}
         result = catalog_sets.genre("Science Fiction", "movie")
         self.assertEqual(result["count"], 3)
+        resolve_genre.assert_called_once_with(["Science Fiction"], "movie")
         discover.assert_called_once()
+
+    @patch("tools.catalog_sets.media_search._resolve_genre_ids", return_value=None)
+    def test_unresolved_genre_is_error_not_false_empty_set(self, resolve_genre):
+        result = catalog_sets.genre("not-a-catalogue-genre", "movie")
+        self.assertIn("error", result)
+        self.assertNotIn("set", result)
 
     @patch("tools.catalog_sets.seerr.media_details")
     @patch("tools.catalog_sets.media_search._credits_ids")
