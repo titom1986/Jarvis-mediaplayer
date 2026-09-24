@@ -230,15 +230,8 @@ def execute_constraint_group(entries, source=None):
     if len(media_types) != 1:
         return {"error": "constraint group has different media types"}
 
-    estimates = []
-    for index, (kind, args) in enumerate(entries):
-        estimate = estimate_constraint(kind, args)
-        if estimate.get("error"):
-            return estimate
-        estimates.append((estimate["count"], index, kind, args, estimate))
-
-    # If a caller already has a candidate subset, never materialize a new broad
-    # catalogue set. Estimates only order the refinements; semantics stay AND.
+    # A supplied source is already the cheapest possible search space. Do not
+    # run global Discover estimates: refine that request-local subset directly.
     if source is not None:
         try:
             src = _get(source)
@@ -247,7 +240,7 @@ def execute_constraint_group(entries, source=None):
         if src["media_type"] not in media_types:
             return {"error": "source handle has different media type"}
         current = {"set": source, "count": len(src["ids"])}
-        for _, _, kind, args, _ in sorted(estimates, key=lambda x: (x[0], x[1])):
+        for kind, args in entries:
             current = materialize_constraint(kind, args, source=current["set"])
             if current.get("error"):
                 return current
@@ -255,7 +248,16 @@ def execute_constraint_group(entries, source=None):
                 break
         return current
 
-    _, seed_index, seed_kind, seed_args, seed_estimate = min(estimates, key=lambda x: (x[0], x[1]))
+    estimates = []
+    for index, (kind, args) in enumerate(entries):
+        estimate = estimate_constraint(kind, args)
+        if estimate.get("error"):
+            return estimate
+        estimates.append((estimate["count"], index, kind, args, estimate))
+
+    _, seed_index, seed_kind, seed_args, seed_estimate = min(
+        estimates, key=lambda x: (x[0], x[1])
+    )
     current = materialize_constraint(
         seed_kind, seed_args, seed_ids=seed_estimate.get("seed_ids")
     )
