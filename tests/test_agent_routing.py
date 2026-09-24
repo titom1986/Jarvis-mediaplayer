@@ -85,7 +85,6 @@ class AgentRoutingTests(unittest.TestCase):
     @patch("tools.catalog_sets.estimate_constraint")
     def test_exclusion_refines_existing_subset_without_broad_materialization(self, estimate, materialize):
         source = agent.catalog_sets._store({10, 11, 12}, "movie", "included")
-        estimate.return_value = {"count": 50000}
         filtered = agent.catalog_sets._store({11}, "movie", "excluded")
         materialize.return_value = filtered
 
@@ -99,6 +98,7 @@ class AgentRoutingTests(unittest.TestCase):
         materialize.assert_called_once()
         self.assertEqual(materialize.call_args.kwargs["source"], source["set"])
         self.assertNotIn("seed_ids", materialize.call_args.kwargs)
+        estimate.assert_not_called()
 
     @patch("tools.catalog_sets.materialize_constraint")
     @patch("tools.catalog_sets.estimate_constraint")
