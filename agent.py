@@ -57,23 +57,64 @@ def _ollama_perf(payload, wall_s):
     }
 
 
+CATALOG_CONSTRAINT_TOOLS = {
+    "catalog_person", "catalog_genre", "catalog_keyword", "catalog_years"
+}
+
+
+def _compose_catalog_batch(entries):
+    """Compose one LLM batch deterministically from group/exclude annotations."""
+    include_groups = {}
+    exclude_groups = {}
+
+    for args, result in entries:
+        if result.get("error"):
+            return {"error": result["error"]}
+        if result.get("found") is False:
+            return {"error": f"unresolved catalogue constraint: {result}"}
+        handle = result.get("set")
+        if not handle:
+            return {"error": f"catalogue constraint produced no set: {result}"}
+        group = int(args.get("group", 0))
+        target = exclude_groups if args.get("exclude", False) else include_groups
+        target.setdefault(group, []).append(handle)
+
+    if not include_groups:
+        return {"error": "catalogue batch has no include constraint"}
+
+    def compose_groups(groups):
+        handles = []
+        for members in groups.values():
+            if len(members) == 1:
+                handles.append(members[0])
+            else:
+                combined = catalog_sets.combine("intersection", members)
+                if combined.get("error"):
+                    return combined
+                handles.append(combined["set"])
+        if len(handles) == 1:
+            value = catalog_sets._get(handles[0])
+            return {"set": handles[0], "count": len(value["ids"])}
+        return catalog_sets.combine("union", handles)
+
+    included = compose_groups(include_groups)
+    if included.get("error"):
+        return included
+
+    if not exclude_groups:
+        return included
+
+    excluded = compose_groups(exclude_groups)
+    if excluded.get("error"):
+        return excluded
+    return catalog_sets.subtract(included["set"], excluded["set"])
+
+
 def _model_config():
-    name = MODEL.casefold()
-    # Keep native default system messages for models whose Ollama templates use
-    # them to teach the tool protocol. Qwen accepts a compact custom policy.
-    if name.startswith(("granite3.3", "phi4-mini", "ministral-3")):
-        return None, {}
-    payload = {"think": False} if name.startswith("qwen3") else {}
-    return (
-        "Tu es JARVIS, l'agent d'un media center. Utilise les outils pour toute "
-        "information dépendant du catalogue ou des services et n'invente pas leurs données. "
-        "Les outils catalog_* créent des ensembles opaques : garde leurs handles courts, "
-        "raffine un ensemble existant avec source quand tu ajoutes une contrainte, combine par intersection pour des contraintes simultanées indépendantes, union pour des "
-        "alternatives, et catalog_subtract pour une exclusion. Termine une recherche avec "
-        "catalog_results. N'ajoute/télécharge un média que sur demande explicite. "
-        "Réponds dans la langue de l'utilisateur.",
-        payload,
-    )
+    # Preserve every model's native Ollama tool template. Semantic operating
+    # instructions live in the common tool schemas, not in model-specific prompts.
+    payload = {"think": False} if MODEL.casefold().startswith("qwen3") else {}
+    return None, payload
 
 
 def run_agent(question):
@@ -119,13 +160,25 @@ def run_agent(question):
             break
 
         messages.append(message)
+        batch_is_constraints = (
+            len(calls) > 1
+            and all(call["function"]["name"] in CATALOG_CONSTRAINT_TOOLS for call in calls)
+        )
+        batch_entries = []
+        pending_tool_messages = []
+
         for call in calls:
             name = call["function"]["name"]
             args = call["function"].get("arguments") or {}
             print(f"> {name}({args})")
             started = time.perf_counter()
             try:
-                result = execute_tool(name, args)
+                # A batch contains independent declarations. Ignore stale/source
+                # handles so all constraints are materialized on equal footing.
+                exec_args = dict(args)
+                if batch_is_constraints:
+                    exec_args.pop("source", None)
+                result = execute_tool(name, exec_args)
             except Exception as exc:
                 result = {"error": str(exc)}
             print("<", json.dumps(result, ensure_ascii=False))
@@ -134,6 +187,18 @@ def run_agent(question):
                 json.dumps({"wall_s": round(time.perf_counter() - started, 3)}, ensure_ascii=False),
             )
             tool_calls += 1
+            if batch_is_constraints:
+                batch_entries.append((args, result))
+            pending_tool_messages.append((name, result))
+
+        if batch_is_constraints:
+            composed = _compose_catalog_batch(batch_entries)
+            print("< composed", json.dumps(composed, ensure_ascii=False))
+            # Attach the deterministic batch result to the final tool response.
+            # The model only needs this final handle for catalog_results.
+            pending_tool_messages[-1][1]["composed"] = composed
+
+        for name, result in pending_tool_messages:
             messages.append({
                 "role": "tool",
                 "tool_name": name,
