@@ -1,4 +1,6 @@
 import requests
+import json
+import time
 from urllib.parse import quote
 
 from config import SERVICES
@@ -7,6 +9,22 @@ SEERR_URL = (SERVICES["seerr"]["url"] or "http://127.0.0.1:5055").rstrip("/")
 SEERR_API_KEY = SERVICES["seerr"]["api_key"]
 
 _PERSON_NAMES = {}
+
+
+def _get(url, **kwargs):
+    """GET with diagnostic timing. Never logs headers or API keys."""
+    started = time.perf_counter()
+    try:
+        response = requests.get(url, **kwargs)
+        elapsed = time.perf_counter() - started
+        safe_path = url.split("/api/v1/", 1)[-1] if "/api/v1/" in url else url
+        print("[SEERR]", json.dumps({"path": safe_path, "params": kwargs.get("params"), "status": response.status_code, "wall_s": round(elapsed, 3)}, ensure_ascii=False, sort_keys=True))
+        return response
+    except Exception as exc:
+        elapsed = time.perf_counter() - started
+        safe_path = url.split("/api/v1/", 1)[-1] if "/api/v1/" in url else url
+        print("[SEERR]", json.dumps({"path": safe_path, "params": kwargs.get("params"), "error": type(exc).__name__, "wall_s": round(elapsed, 3)}, ensure_ascii=False, sort_keys=True))
+        raise
 
 TOOL = {
     "type": "function",
@@ -37,7 +55,7 @@ def search(query):
         return {"error": "SEERR_API_KEY non configurée"}
 
     try:
-        r = requests.get(
+        r = _get(
             f"{SEERR_URL}/api/v1/search",
             headers={"X-Api-Key": SEERR_API_KEY},
             params={"query": quote(query, safe="")},
@@ -98,7 +116,7 @@ def person_credits(person_id, limit=20):
     if not SEERR_API_KEY:
         return {"error": "SEERR_API_KEY non configurée"}
 
-    r = requests.get(
+    r = _get(
         f"{SEERR_URL}/api/v1/person/{person_id}/combined_credits",
         headers={"X-Api-Key": SEERR_API_KEY},
         timeout=15,
@@ -138,7 +156,7 @@ def genres(media_type):
     if not SEERR_API_KEY:
         return []
 
-    r = requests.get(
+    r = _get(
         f"{SEERR_URL}/api/v1/genres/{media_type}",
         headers={"X-Api-Key": SEERR_API_KEY},
         params={"language": "en"},
@@ -156,7 +174,7 @@ def search_keyword(query):
         return {"error": "SEERR_API_KEY non configurée"}
 
     try:
-        r = requests.get(
+        r = _get(
             f"{SEERR_URL}/api/v1/search/keyword",
             headers={"X-Api-Key": SEERR_API_KEY},
             params={"query": query, "page": 1},
@@ -212,7 +230,7 @@ def discover(
         if date_to:
             params["firstAirDateLte"] = date_to
 
-    r = requests.get(
+    r = _get(
         f"{SEERR_URL}/api/v1/discover/{path}",
         headers={"X-Api-Key": SEERR_API_KEY},
         params=params,
@@ -229,7 +247,7 @@ def media_details(media_id, media_type="movie"):
     if media_type not in ("movie", "tv"):
         return {"error": f"Type de média invalide : {media_type}"}
 
-    r = requests.get(
+    r = _get(
         f"{SEERR_URL}/api/v1/{media_type}/{media_id}",
         headers={"X-Api-Key": SEERR_API_KEY},
         timeout=15,
