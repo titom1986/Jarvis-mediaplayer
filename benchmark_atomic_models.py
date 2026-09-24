@@ -30,10 +30,13 @@ REPORT = "benchmark-atomic-models.txt"
 
 
 def run(cmd, env=None):
-    return subprocess.run(
-        cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        env=env, check=False,
-    )
+    try:
+        return subprocess.run(
+            cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=env, check=False,
+        )
+    except Exception as exc:
+        return subprocess.CompletedProcess(cmd, 127, stdout=f"[diagnostic error] {type(exc).__name__}: {exc}\\n")
 
 
 def snapshot():
@@ -45,7 +48,7 @@ def snapshot():
 
 
 def ollama_models():
-    result = run(["ollama", "list"])
+    result = run(["docker", "exec", "ollama", "ollama", "list"])
     return result.returncode, result.stdout.rstrip()
 
 
