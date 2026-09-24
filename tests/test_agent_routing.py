@@ -135,18 +135,48 @@ class AgentRoutingTests(unittest.TestCase):
         self.assertEqual(result["count"], 1987)
         self.assertEqual(discover.call_count, 1)
 
-    def test_composed_catalogue_contract_requires_grounded_results(self):
-        composed = {"set": "s9", "count": 3}
-        if not composed.get("error") and composed.get("set"):
-            composed["results_loaded"] = False
-            composed["required_action"] = (
-                "The candidate set is computed but contains no media titles. "
-                "Call catalog_results with this set before naming, listing, or recommending any media. "
-                "Never infer titles from the count or from model memory."
-            )
-        self.assertFalse(composed["results_loaded"])
-        self.assertIn("catalog_results", composed["required_action"])
-        self.assertIn("Never infer titles", composed["required_action"])
+    @patch("agent.catalog_sets.results")
+    @patch("agent.catalog_sets.execute_constraint_group")
+    @patch("agent.requests.post")
+    def test_full_agent_catalogue_chain_materializes_grounded_results(self, post, execute_group, results):
+        seed = agent.catalog_sets._store({101, 102}, "movie", "seed")
+        execute_group.return_value = seed
+        results.return_value = {
+            "set": seed["set"], "count": 2,
+            "results": [
+                {"mediaType": "movie", "id": 101, "title": "Alpha", "releaseDate": "2001-01-01", "rating": 8.0, "voteCount": 100},
+                {"mediaType": "movie", "id": 102, "title": "Beta", "releaseDate": "2002-01-01", "rating": 7.0, "voteCount": 90},
+            ],
+        }
+
+        class Response:
+            def __init__(self, payload):
+                self.payload = payload
+            def raise_for_status(self):
+                pass
+            def json(self):
+                return self.payload
+
+        post.side_effect = [
+            Response({"message": {"role": "assistant", "content": "", "tool_calls": [
+                {"function": {"name": "catalog_person", "arguments": {"name": "Actor", "media_type": "movie"}}},
+                {"function": {"name": "catalog_years", "arguments": {"year_from": 2000, "year_to": 2005, "media_type": "movie"}}},
+            ]}}),
+            Response({"message": {"role": "assistant", "content": "Alpha et Beta."}}),
+        ]
+
+        agent.run_agent("films avec Actor entre 2000 et 2005")
+
+        results.assert_called_once_with(seed["set"], limit=10)
+        second_payload = post.call_args_list[1].kwargs["json"]
+        tool_payloads = [
+            __import__("json").loads(m["content"])
+            for m in second_payload["messages"] if m.get("role") == "tool"
+        ]
+        composed = next(p["composed"] for p in tool_payloads if "composed" in p)
+        self.assertTrue(composed["results_loaded"])
+        self.assertEqual([x["title"] for x in composed["grounded_results"]["results"]], ["Alpha", "Beta"])
+        self.assertIn("only catalogue media", composed["response_contract"])
 
     def test_unknown_tool_is_nonfatal(self):
         self.assertIn("error", agent.execute_tool("does_not_exist", {}))
