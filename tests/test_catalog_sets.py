@@ -33,6 +33,37 @@ class CatalogSetTests(unittest.TestCase):
         self.assertEqual(final["count"], 7)
         self.assertNotIn("ids", final)
 
+    @patch("tools.catalog_sets.seerr.media_details")
+    @patch("tools.catalog_sets.media_search._discover_ids")
+    def test_people_first_refinement_never_broad_scans(self, discover, details):
+        base = catalog_sets._store(range(1, 166), "movie", "person")
+        def item(media_id, media_type):
+            return {
+                "id": media_id, "mediaType": media_type,
+                "title": f"Movie {media_id}",
+                "releaseDate": "1995-01-01" if media_id <= 20 else "2005-01-01",
+                "genres": ["Science Fiction"] if media_id <= 40 else ["Action"],
+                "keywords": ["time travel"] if media_id <= 10 else [],
+            }
+        details.side_effect = item
+
+        sf = catalog_sets.genre("Science Fiction", "movie", source=base["set"])
+        decade = catalog_sets.years(1990, 1999, "movie", source=sf["set"])
+        time_travel = catalog_sets.keyword("time travel", "movie", source=decade["set"])
+
+        self.assertEqual(sf["count"], 40)
+        self.assertEqual(decade["count"], 20)
+        self.assertEqual(time_travel["count"], 10)
+        discover.assert_not_called()
+        self.assertEqual(details.call_count, 225)
+
+    @patch("tools.catalog_sets.media_search._discover_ids")
+    def test_first_broad_constraint_can_use_discover(self, discover):
+        discover.return_value = {1, 2, 3}
+        result = catalog_sets.genre("Science Fiction", "movie")
+        self.assertEqual(result["count"], 3)
+        discover.assert_called_once()
+
     def test_unknown_handle_is_safe_error(self):
         self.assertIn("error", catalog_sets.combine("intersection", ["missing"]))
 
