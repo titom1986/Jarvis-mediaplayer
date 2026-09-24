@@ -105,6 +105,17 @@ def genre(name, media_type, source=None):
     return _store(ids, media_type, f"genre:{name}")
 
 
+def keyword_vocabulary(query, limit=12):
+    """Expose Seerr/TMDB keyword labels for semantic selection by the model."""
+    result = seerr.search_keyword(query)
+    if "error" in result:
+        return result
+    items = []
+    for item in result.get("results", [])[:max(1, min(int(limit), 20))]:
+        if item.get("id") and item.get("name"):
+            items.append({"id": item["id"], "name": item["name"]})
+    return {"query": query, "count": len(items), "keywords": items}
+
 def keyword(name, media_type, source=None, aliases=None):
     if source:
         try:
@@ -458,9 +469,19 @@ GENRE_TOOL = _tool(
     ["name", "media_type"],
 )
 
+KEYWORD_VOCABULARY_TOOL = _tool(
+    "catalog_keyword_vocabulary",
+    "Look up real Seerr/TMDB keyword labels for a theme or concept before declaring catalog_keyword when the catalogue wording is uncertain. This tool returns vocabulary only; choose semantically appropriate returned labels yourself. Do not treat every returned label as equivalent.",
+    {
+        "query": {"type": "string", "description": "Short English concept or lexical variant to look up in the catalogue keyword vocabulary."},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 20},
+    },
+    ["query"],
+)
+
 KEYWORD_TOOL = _tool(
     "catalog_keyword",
-    "Declare one movie or TV theme/concept/keyword constraint. Use the canonical catalogue keyword, normally English. Multiple constraint calls may be emitted together; Python composes them deterministically.",
+    "Declare one movie or TV theme/concept constraint using real catalogue keyword labels. If the catalogue wording for a semantic concept is uncertain, call catalog_keyword_vocabulary first and then use the semantically appropriate returned label(s). aliases are OR-equivalent labels for the same requested concept. Multiple constraint calls may be emitted together; Python composes them deterministically.",
     {
         "name": {"type": "string"},
         "aliases": {"type": "array", "items": {"type": "string"}, "maxItems": 5, "description": "Optional English catalogue keyword labels that express the same requested concept. They are OR alternatives, never additional constraints. Use them when a concept can be represented by several catalogue labels."},
@@ -517,6 +538,6 @@ RESULTS_TOOL = _tool(
 )
 
 TOOLS = [
-    PERSON_TOOL, GENRE_TOOL, KEYWORD_TOOL, YEARS_TOOL,
+    PERSON_TOOL, GENRE_TOOL, KEYWORD_VOCABULARY_TOOL, KEYWORD_TOOL, YEARS_TOOL,
     COMBINE_TOOL, SUBTRACT_TOOL, RESULTS_TOOL,
 ]
