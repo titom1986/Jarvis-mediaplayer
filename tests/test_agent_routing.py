@@ -178,6 +178,12 @@ class AgentRoutingTests(unittest.TestCase):
         self.assertEqual([x["title"] for x in composed["grounded_results"]["results"]], ["Alpha", "Beta"])
         self.assertIn("only catalogue media", composed["response_contract"])
 
+    @patch("agent.radarr.request_movie", return_value={"added": True, "title": "Alpha"})
+    def test_action_routing_uses_exact_grounded_identifier(self, request_movie):
+        result = agent.execute_tool("radarr_request_movie", {"tmdb_id": 101, "french": False})
+        self.assertTrue(result["added"])
+        request_movie.assert_called_once_with(101, french=False)
+
     def test_unknown_tool_is_nonfatal(self):
         self.assertIn("error", agent.execute_tool("does_not_exist", {}))
 
