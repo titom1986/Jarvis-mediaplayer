@@ -53,17 +53,82 @@ def person(name, media_type):
     return {"found": True, **_store(ids, media_type, f"person:{name}")}
 
 
-def genre(name, media_type):
+def _filter_existing(source, predicate, label):
+    try:
+        value = _get(source)
+    except ValueError as exc:
+        return {"error": str(exc)}
+
+    ids = list(value["ids"])
+
+    def matches(media_id):
+        try:
+            item = seerr.media_details(media_id, value["media_type"])
+            return media_id if "error" not in item and predicate(item) else None
+        except Exception:
+            return None
+
+    kept = set()
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = [pool.submit(matches, media_id) for media_id in ids]
+        for future in as_completed(futures):
+            media_id = future.result()
+            if media_id is not None:
+                kept.add(media_id)
+    return _store(kept, value["media_type"], label)
+
+
+def genre(name, media_type, source=None):
+    if source:
+        try:
+            value = _get(source)
+        except ValueError as exc:
+            return {"error": str(exc)}
+        if value["media_type"] != media_type:
+            return {"error": "source handle has different media type"}
+        wanted = media_search._norm(name)
+        return _filter_existing(
+            source,
+            lambda item: wanted in {media_search._norm(v) for v in item.get("genres", [])},
+            f"genre:{name}",
+        )
     ids = media_search._discover_ids({"genres": [name]}, media_type)
     return _store(ids, media_type, f"genre:{name}")
 
 
-def keyword(name, media_type):
+def keyword(name, media_type, source=None):
+    if source:
+        try:
+            value = _get(source)
+        except ValueError as exc:
+            return {"error": str(exc)}
+        if value["media_type"] != media_type:
+            return {"error": "source handle has different media type"}
+        wanted = media_search._norm(name)
+        return _filter_existing(
+            source,
+            lambda item: wanted in {media_search._norm(v) for v in item.get("keywords", [])},
+            f"keyword:{name}",
+        )
     ids = media_search._discover_ids({"keywords": [name]}, media_type)
     return _store(ids, media_type, f"keyword:{name}")
 
 
-def years(year_from, year_to, media_type):
+def years(year_from, year_to, media_type, source=None):
+    if source:
+        try:
+            value = _get(source)
+        except ValueError as exc:
+            return {"error": str(exc)}
+        if value["media_type"] != media_type:
+            return {"error": "source handle has different media type"}
+        return _filter_existing(
+            source,
+            lambda item: media_search._match_dates(
+                [{"from": year_from, "to": year_to}], item.get("releaseDate")
+            ),
+            f"years:{year_from}-{year_to}",
+        )
     ids = media_search._discover_ids(
         {"dates": [{"from": year_from, "to": year_to}]}, media_type
     )
@@ -168,6 +233,7 @@ GENRE_TOOL = _tool(
     {
         "name": {"type": "string"},
         "media_type": {"type": "string", "enum": ["movie", "tv"]},
+        "source": {"type": "string", "description": "Optional existing candidate-set handle to refine instead of scanning the whole catalogue."},
     },
     ["name", "media_type"],
 )
@@ -178,6 +244,7 @@ KEYWORD_TOOL = _tool(
     {
         "name": {"type": "string"},
         "media_type": {"type": "string", "enum": ["movie", "tv"]},
+        "source": {"type": "string", "description": "Optional existing candidate-set handle to refine instead of scanning the whole catalogue."},
     },
     ["name", "media_type"],
 )
@@ -189,6 +256,7 @@ YEARS_TOOL = _tool(
         "year_from": {"type": "integer"},
         "year_to": {"type": "integer"},
         "media_type": {"type": "string", "enum": ["movie", "tv"]},
+        "source": {"type": "string", "description": "Optional existing candidate-set handle to refine instead of scanning the whole catalogue."},
     },
     ["year_from", "year_to", "media_type"],
 )
