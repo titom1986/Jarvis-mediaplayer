@@ -178,6 +178,40 @@ class AgentRoutingTests(unittest.TestCase):
         self.assertIn("only catalogue media", composed["response_contract"])
 
     @patch("agent.radarr.request_movie", return_value={"added": True, "title": "Alpha"})
+    @patch("agent.catalog_sets.results")
+    @patch("agent.catalog_sets.execute_constraint_group")
+    @patch("agent.requests.post")
+    def test_full_discover_then_action_cycle_uses_grounded_tmdb_id(self, post, execute_group, results, request_movie):
+        execute_group.side_effect = lambda members, source=None: agent.catalog_sets._store({101}, "movie", "seed")
+        results.return_value = {
+            "set": "s1", "count": 1,
+            "results": [{"mediaType": "movie", "id": 101, "title": "Alpha", "releaseDate": "2001-01-01", "rating": 8.0, "voteCount": 100}],
+        }
+
+        class Response:
+            def __init__(self, payload):
+                self.payload = payload
+            def raise_for_status(self):
+                pass
+            def json(self):
+                return self.payload
+
+        post.side_effect = [
+            Response({"message": {"role": "assistant", "content": "", "tool_calls": [
+                {"function": {"name": "catalog_genre", "arguments": {"name": "Action", "media_type": "movie"}}},
+                {"function": {"name": "catalog_years", "arguments": {"year_from": 2000, "year_to": 2005, "media_type": "movie"}}},
+            ]}}),
+            Response({"message": {"role": "assistant", "content": "", "tool_calls": [
+                {"function": {"name": "radarr_request_movie", "arguments": {"tmdb_id": 101, "french": False}}}
+            ]}}),
+            Response({"message": {"role": "assistant", "content": "Alpha a été ajouté."}}),
+        ]
+
+        agent.run_agent("trouve un film d'action 2000-2005 et ajoute-le")
+        request_movie.assert_called_once_with(101, french=False)
+        self.assertEqual(post.call_count, 3)
+
+    @patch("agent.radarr.request_movie", return_value={"added": True, "title": "Alpha"})
     def test_action_routing_uses_exact_grounded_identifier(self, request_movie):
         result = agent.execute_tool("radarr_request_movie", {"tmdb_id": 101, "french": False})
         self.assertTrue(result["added"])
