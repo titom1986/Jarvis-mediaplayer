@@ -1,0 +1,159 @@
+=== VERSION ===
+d349bdf Test catalogue vocabulary lookup contract
+
+=== SYSTEM BEFORE ===
+Thu Sep 24 11:20:08 AM -01 2026
+ 11:20:08 up 63 days,  1:15,  3 users,  load average: 0.38, 0.44, 0.78
+               total        used        free      shared  buff/cache   available
+Mem:            15Gi       5.8Gi       224Mi       365Mi       9.5Gi       9.0Gi
+Swap:          4.0Gi       737Mi       3.3Gi
+CONTAINER ID   NAME      CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O         PIDS
+6485f4442da3   ollama    0.00%     5.265GiB / 15.56GiB   33.83%    4.59GB / 66.8MB   10.7GB / 4.52GB   41
+
+=== SMOKE VOCABULARY ===
+Seed Agent - qwen3:4b-instruct
+
+
+--- Agent ---
+[PERF] agent_llm_1 {"wall_s": 205.436, "load_ms": 3.5, "prompt_eval_ms": 124805.9, "eval_ms": 80396.1, "prompt_tokens": 1899, "output_tokens": 126}
+> catalog_genre({'name': 'Science Fiction', 'media_type': 'movie'})
+> catalog_person({'name': 'Tom Cruise', 'media_type': 'movie'})
+> catalog_years({'year_from': 2000, 'year_to': 2015, 'media_type': 'movie'})
+> catalog_keyword({'name': 'extraterrestrial', 'media_type': 'movie'})
+[PLAN] batch {"exclude_groups": {}, "include_groups": {"0": ["catalog_genre", "catalog_person", "catalog_years", "catalog_keyword"]}}
+[PLAN] group_start {"constraints": [{"args": {"media_type": "movie", "name": "Science Fiction"}, "tool": "catalog_genre"}, {"args": {"media_type": "movie", "name": "Tom Cruise"}, "tool": "catalog_person"}, {"args": {"media_type": "movie", "year_from": 2000, "year_to": 2015}, "tool": "catalog_years"}, {"args": {"media_type": "movie", "name": "extraterrestrial"}, "tool": "catalog_keyword"}], "group": "0", "source": null}
+[SEERR] {"params": {"language": "en"}, "path": "genres/movie", "status": 200, "wall_s": 0.007}
+[SEERR] {"params": {"language": "en"}, "path": "genres/movie", "status": 200, "wall_s": 0.026}
+[SEERR] {"params": {"genre": "878", "page": 1, "sortBy": "popularity.desc"}, "path": "discover/movies", "status": 200, "wall_s": 0.034}
+[CATALOG] estimate {"args": {"media_type": "movie", "name": "Science Fiction"}, "count": 20001, "error": null, "kind": "catalog_genre", "seed_ids": null, "wall_s": 0.068}
+[SEERR] {"params": {"query": "Tom%20Cruise"}, "path": "search", "status": 200, "wall_s": 0.019}
+[SEERR] {"params": null, "path": "person/500/combined_credits", "status": 200, "wall_s": 0.036}
+[CATALOG] estimate {"args": {"media_type": "movie", "name": "Tom Cruise"}, "count": 97, "error": null, "kind": "catalog_person", "seed_ids": 97, "wall_s": 0.058}
+[SEERR] {"params": {"page": 1, "primaryReleaseDateGte": "2000-01-01", "primaryReleaseDateLte": "2015-12-31", "sortBy": "popularity.desc"}, "path": "discover/movies", "status": 200, "wall_s": 0.019}
+[CATALOG] estimate {"args": {"media_type": "movie", "year_from": 2000, "year_to": 2015}, "count": 20001, "error": null, "kind": "catalog_years", "seed_ids": null, "wall_s": 0.019}
+[SEERR] {"params": {"page": 1, "query": "extraterrestrial"}, "path": "search/keyword", "status": 200, "wall_s": 0.009}
+[SEERR] {"params": {"keywords": "9739", "page": 1, "sortBy": "popularity.desc"}, "path": "discover/movies", "status": 200, "wall_s": 0.024}
+[CATALOG] estimate {"args": {"media_type": "movie", "name": "extraterrestrial"}, "count": 106, "error": null, "kind": "catalog_keyword", "seed_ids": null, "wall_s": 0.034}
+[CATALOG] seed {"actual_count": 97, "args": {"media_type": "movie", "name": "Tom Cruise"}, "error": null, "estimated_count": 97, "kind": "catalog_person", "set": "s1", "wall_s": 0.0}
+[SEERR] {"params": null, "path": "movie/75780", "status": 200, "wall_s": 0.078}
+[SEERR] {"params": null, "path": "movie/40196", "status": 200, "wall_s": 0.089}
+[SEERR] {"params": null, "path": "movie/1538", "status": 200, "wall_s": 0.095}
+[SEERR] {"params": null, "path": "movie/1479180", "status": 200, "wall_s": 0.099}
+[SEERR] {"params": null, "path": "movie/7446", "status": 200, "wall_s": 0.115}
+[SEERR] {"params": null, "path": "movie/177677", "status": 200, "wall_s": 0.128}
+[SEERR] {"params": null, "path": "movie/337170", "status": 200, "wall_s": 0.141}
+[SEERR] {"params": null, "path": "movie/361743", "status": 200, "wall_s": 0.147}
+[SEERR] {"params": null, "path": "movie/833818", "status": 200, "wall_s": 0.09}
+[SEERR] {"params": null, "path": "movie/975388", "status": 200, "wall_s": 0.09}
+[SEERR] {"params": null, "path": "movie/1321757", "status": 200, "wall_s": 0.09}
+[SEERR] {"params": null, "path": "movie/575264", "status": 200, "wall_s": 0.089}
+[SEERR] {"params": null, "path": "movie/575265", "status": 200, "wall_s": 0.08}
+[SEERR] {"params": null, "path": "movie/36131", "status": 200, "wall_s": 0.08}
+[SEERR] {"params": null, "path": "movie/689705", "status": 200, "wall_s": 0.071}
+[SEERR] {"params": null, "path": "movie/2604", "status": 200, "wall_s": 0.076}
+[SEERR] {"params": null, "path": "movie/18221", "status": 200, "wall_s": 0.085}
+[SEERR] {"params": null, "path": "movie/818", "status": 200, "wall_s": 0.08}
+[SEERR] {"params": null, "path": "movie/149044", "status": 200, "wall_s": 0.096}
+[SEERR] {"params": null, "path": "movie/705078", "status": 200, "wall_s": 0.09}
+[SEERR] {"params": null, "path": "movie/343611", "status": 200, "wall_s": 0.096}
+[SEERR] {"params": null, "path": "movie/353081", "status": 200, "wall_s": 0.111}
+[SEERR] {"params": null, "path": "movie/1248832", "status": 200, "wall_s": 0.101}
+[SEERR] {"params": null, "path": "movie/1497665", "status": 200, "wall_s": 0.092}
+[SEERR] {"params": null, "path": "movie/1483843", "status": 200, "wall_s": 0.09}
+[SEERR] {"params": null, "path": "movie/2119", "status": 200, "wall_s": 0.087}
+[SEERR] {"params": null, "path": "movie/74", "status": 200, "wall_s": 0.078}
+[SEERR] {"params": null, "path": "movie/1158471", "status": 200, "wall_s": 0.084}
+[SEERR] {"params": null, "path": "movie/334", "status": 200, "wall_s": 0.072}
+[SEERR] {"params": null, "path": "movie/765522", "status": 200, "wall_s": 0.07}
+[SEERR] {"params": null, "path": "movie/1113682", "status": 200, "wall_s": 0.069}
+[SEERR] {"params": null, "path": "movie/1133142", "status": 200, "wall_s": 0.071}
+[SEERR] {"params": null, "path": "movie/345", "status": 200, "wall_s": 0.067}
+[SEERR] {"params": null, "path": "movie/1752154", "status": 200, "wall_s": 0.066}
+[SEERR] {"params": null, "path": "movie/1022047", "status": 200, "wall_s": 0.063}
+[SEERR] {"params": null, "path": "movie/75612", "status": 200, "wall_s": 0.072}
+[SEERR] {"params": null, "path": "movie/7520", "status": 200, "wall_s": 0.066}
+[SEERR] {"params": null, "path": "movie/11873", "status": 200, "wall_s": 0.071}
+[SEERR] {"params": null, "path": "movie/298339", "status": 200, "wall_s": 0.072}
+[SEERR] {"params": null, "path": "movie/616", "status": 200, "wall_s": 0.073}
+[SEERR] {"params": null, "path": "movie/126314", "status": 200, "wall_s": 0.058}
+[SEERR] {"params": null, "path": "movie/1229934", "status": 200, "wall_s": 0.064}
+[SEERR] {"params": null, "path": "movie/984430", "status": 200, "wall_s": 0.067}
+[SEERR] {"params": null, "path": "movie/1903", "status": 200, "wall_s": 0.065}
+[SEERR] {"params": null, "path": "movie/37233", "status": 200, "wall_s": 0.069}
+[SEERR] {"params": null, "path": "movie/881", "status": 200, "wall_s": 0.067}
+[SEERR] {"params": null, "path": "movie/628", "status": 200, "wall_s": 0.068}
+[SEERR] {"params": null, "path": "movie/393076", "status": 200, "wall_s": 0.072}
+[SEERR] {"params": null, "path": "movie/467062", "status": 200, "wall_s": 0.072}
+[SEERR] {"params": null, "path": "movie/380", "status": 200, "wall_s": 0.076}
+[SEERR] {"params": null, "path": "movie/9346", "status": 200, "wall_s": 0.071}
+[SEERR] {"params": null, "path": "movie/965251", "status": 200, "wall_s": 0.071}
+[SEERR] {"params": null, "path": "movie/10627", "status": 200, "wall_s": 0.055}
+[SEERR] {"params": null, "path": "movie/33676", "status": 200, "wall_s": 0.057}
+[SEERR] {"params": null, "path": "movie/1737349", "status": 200, "wall_s": 0.061}
+[SEERR] {"params": null, "path": "movie/1263766", "status": 200, "wall_s": 0.05}
+[SEERR] {"params": null, "path": "movie/1545109", "status": 200, "wall_s": 0.054}
+[SEERR] {"params": null, "path": "movie/1736095", "status": 200, "wall_s": 0.057}
+[SEERR] {"params": null, "path": "movie/565663", "status": 200, "wall_s": 0.058}
+[SEERR] {"params": null, "path": "movie/137113", "status": 200, "wall_s": 0.072}
+[SEERR] {"params": null, "path": "movie/4515", "status": 200, "wall_s": 0.072}
+[SEERR] {"params": null, "path": "movie/19114", "status": 200, "wall_s": 0.068}
+[SEERR] {"params": null, "path": "movie/554405", "status": 200, "wall_s": 0.071}
+[SEERR] {"params": null, "path": "movie/9390", "status": 200, "wall_s": 0.07}
+[SEERR] {"params": null, "path": "movie/1504944", "status": 200, "wall_s": 0.072}
+[SEERR] {"params": null, "path": "movie/1209264", "status": 200, "wall_s": 0.064}
+[SEERR] {"params": null, "path": "movie/180", "status": 200, "wall_s": 0.064}
+[SEERR] {"params": null, "path": "movie/282035", "status": 200, "wall_s": 0.08}
+[SEERR] {"params": null, "path": "movie/673205", "status": 200, "wall_s": 0.063}
+[SEERR] {"params": null, "path": "movie/1107128", "status": 200, "wall_s": 0.072}
+[SEERR] {"params": null, "path": "movie/1504953", "status": 200, "wall_s": 0.083}
+[SEERR] {"params": null, "path": "movie/954", "status": 200, "wall_s": 0.079}
+[SEERR] {"params": null, "path": "movie/955", "status": 200, "wall_s": 0.082}
+[SEERR] {"params": null, "path": "movie/956", "status": 200, "wall_s": 0.071}
+[SEERR] {"params": null, "path": "movie/1728957", "status": 200, "wall_s": 0.07}
+[SEERR] {"params": null, "path": "movie/11967", "status": 200, "wall_s": 0.068}
+[SEERR] {"params": null, "path": "movie/359871", "status": 200, "wall_s": 0.068}
+[SEERR] {"params": null, "path": "movie/999621", "status": 200, "wall_s": 0.072}
+[SEERR] {"params": null, "path": "movie/11976", "status": 200, "wall_s": 0.068}
+[SEERR] {"params": null, "path": "movie/80585", "status": 200, "wall_s": 0.067}
+[SEERR] {"params": null, "path": "movie/37834", "status": 200, "wall_s": 0.071}
+[SEERR] {"params": null, "path": "movie/1231307", "status": 200, "wall_s": 0.067}
+[SEERR] {"params": null, "path": "movie/2253", "status": 200, "wall_s": 0.069}
+[SEERR] {"params": null, "path": "movie/30416", "status": 200, "wall_s": 0.068}
+[SEERR] {"params": null, "path": "movie/291537", "status": 200, "wall_s": 0.068}
+[SEERR] {"params": null, "path": "movie/1595856", "status": 200, "wall_s": 0.057}
+[SEERR] {"params": null, "path": "movie/118483", "status": 200, "wall_s": 0.057}
+[SEERR] {"params": null, "path": "movie/1701851", "status": 200, "wall_s": 0.055}
+[SEERR] {"params": null, "path": "movie/1395426", "status": 200, "wall_s": 0.053}
+[SEERR] {"params": null, "path": "movie/227", "status": 200, "wall_s": 0.054}
+[SEERR] {"params": null, "path": "movie/56292", "status": 200, "wall_s": 0.057}
+[SEERR] {"params": null, "path": "movie/744", "status": 200, "wall_s": 0.057}
+[SEERR] {"params": null, "path": "movie/834027", "status": 200, "wall_s": 0.058}
+[SEERR] {"params": null, "path": "movie/1079535", "status": 200, "wall_s": 0.056}
+[SEERR] {"params": null, "path": "movie/1322488", "status": 200, "wall_s": 0.053}
+[SEERR] {"params": null, "path": "movie/11259", "status": 200, "wall_s": 0.052}
+[SEERR] {"params": null, "path": "movie/18172", "status": 200, "wall_s": 0.047}
+[CATALOG] refine {"after": 0, "args": {"media_type": "movie", "name": "extraterrestrial"}, "before": 97, "error": null, "kind": "catalog_keyword", "wall_s": 0.932}
+[PLAN] group_done {"group": "0", "result": {"count": 0, "label": "keyword:extraterrestrial", "set": "s2"}, "source": null}
+[PLAN] included {"count": 0, "set": "s2"}
+< composed {"set": "s2", "count": 0}
+[PERF] catalog_batch {"wall_s": 1.111}
+[PERF] agent_llm_2 {"wall_s": 103.235, "load_ms": 3.5, "prompt_eval_ms": 35325.5, "eval_ms": 67787.8, "prompt_tokens": 2085, "output_tokens": 97}
+[PERF] total {"wall_s": 309.782, "ollama_calls": 2, "tool_calls": 4}
+
+═══ RÉPONSE ═══
+
+I have identified the constraints for your search: a science fiction movie featuring Tom Cruise, released between 2000 and 2015, with the theme of extraterrestrials. However, the search result for "extraterrestrial" in the movie catalog returned no matches (count: 0). This means there are no films that meet all these criteria.
+
+If you'd like, I can refine the search or explore alternative options. Let me know!
+
+=== EXIT CODE: 0 ===
+
+=== SYSTEM AFTER ===
+Thu Sep 24 11:25:20 AM -01 2026
+ 11:25:20 up 63 days,  1:20,  3 users,  load average: 4.59, 3.02, 1.82
+               total        used        free      shared  buff/cache   available
+Mem:            15Gi       6.1Gi       185Mi       365Mi       9.3Gi       8.8Gi
+Swap:          4.0Gi       739Mi       3.3Gi
+CONTAINER ID   NAME      CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O         PIDS
+6485f4442da3   ollama    0.00%     5.474GiB / 15.56GiB   35.17%    4.59GB / 66.8MB   10.7GB / 4.52GB   41
+=== END ===
