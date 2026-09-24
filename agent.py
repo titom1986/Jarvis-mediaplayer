@@ -94,7 +94,10 @@ def _compose_catalog_batch(entries):
     included = execute_groups(include_groups)
     if included.get("error") or not exclude_groups:
         return included
-    # Exclusions can only remove included candidates, so refine each exclusion\n    # group from the included subset instead of broad-scanning the catalogue.\n    excluded = execute_groups(exclude_groups, source=included["set"])\n    if excluded.get("error"):
+    # Exclusions can only remove included candidates, so refine each exclusion
+    # group from the included subset instead of broad-scanning the catalogue.
+    excluded = execute_groups(exclude_groups, source=included["set"])
+    if excluded.get("error"):
         return excluded
     return catalog_sets.subtract(included["set"], excluded["set"])
 
