@@ -222,8 +222,8 @@ def materialize_constraint(kind, args, source=None, seed_ids=None):
     return {"error": f"unsupported constraint: {kind}"}
 
 
-def execute_constraint_group(entries):
-    """Choose the cheapest seed by data cardinality, then refine deterministically."""
+def execute_constraint_group(entries, source=None):
+    """Choose the cheapest seed, or refine an existing candidate set."""
     if not entries:
         return {"error": "constraint group is empty"}
     media_types = {args.get("media_type") for _, args in entries}
@@ -236,6 +236,24 @@ def execute_constraint_group(entries):
         if estimate.get("error"):
             return estimate
         estimates.append((estimate["count"], index, kind, args, estimate))
+
+    # If a caller already has a candidate subset, never materialize a new broad
+    # catalogue set. Estimates only order the refinements; semantics stay AND.
+    if source is not None:
+        try:
+            src = _get(source)
+        except ValueError as exc:
+            return {"error": str(exc)}
+        if src["media_type"] not in media_types:
+            return {"error": "source handle has different media type"}
+        current = {"set": source, "count": len(src["ids"])}
+        for _, _, kind, args, _ in sorted(estimates, key=lambda x: (x[0], x[1])):
+            current = materialize_constraint(kind, args, source=current["set"])
+            if current.get("error"):
+                return current
+            if current.get("count") == 0:
+                break
+        return current
 
     _, seed_index, seed_kind, seed_args, seed_estimate = min(estimates, key=lambda x: (x[0], x[1]))
     current = materialize_constraint(
