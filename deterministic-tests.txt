@@ -1,0 +1,23 @@
+test_catalogue_label_normalization_is_lexical_only (tests.test_catalog_sets.CatalogSetTests) ... ok
+test_first_broad_constraint_can_use_discover (tests.test_catalog_sets.CatalogSetTests) ... ok
+test_mixed_media_types_are_rejected (tests.test_catalog_sets.CatalogSetTests) ... ok
+test_people_first_refinement_never_broad_scans (tests.test_catalog_sets.CatalogSetTests) ... ok
+test_person_returns_handle_not_ids (tests.test_catalog_sets.CatalogSetTests) ... ok
+test_representative_end_to_end_set_path (tests.test_catalog_sets.CatalogSetTests) ... ok
+test_set_algebra_keeps_cardinality_out_of_model_context (tests.test_catalog_sets.CatalogSetTests) ... ok
+test_unknown_handle_is_safe_error (tests.test_catalog_sets.CatalogSetTests) ... ok
+test_unresolved_genre_is_error_not_false_empty_set (tests.test_catalog_sets.CatalogSetTests) ... ok
+test_catalog_refinements_forward_source (tests.test_agent_routing.AgentRoutingTests) ... ok
+test_catalog_set_algebra_routing (tests.test_agent_routing.AgentRoutingTests) ... ok
+test_parallel_batch_has_no_semantic_type_priority (tests.test_agent_routing.AgentRoutingTests) ... ok
+test_parallel_constraint_batch_and_or_exclude (tests.test_agent_routing.AgentRoutingTests) ... ok
+test_plex_radarr_sonarr_routing (tests.test_agent_routing.AgentRoutingTests) ... ok
+test_unknown_tool_is_nonfatal (tests.test_agent_routing.AgentRoutingTests) ... ok
+
+----------------------------------------------------------------------
+Ran 15 tests in 0.040s
+
+OK
+
+
+=== EXIT CODE: 0 ===
