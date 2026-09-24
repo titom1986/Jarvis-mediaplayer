@@ -205,7 +205,7 @@ def run_agent(question):
                         "grounding_required": True,
                         "concept": args["name"],
                         "catalogue_labels": labels,
-                        "required_action": "Call catalog_keyword again using only semantically appropriate catalogue_labels as name/aliases; keep the other search constraints unchanged.",
+                        "required_action": "Choose only labels that match the user's concept. If these labels are insufficient, call catalog_keyword_vocabulary with an alternative English wording and inspect its real catalogue labels. Then call catalog_keyword using only semantically appropriate returned labels as name/aliases; keep the other search constraints unchanged.",
                     }
                     pending_tool_messages.append(("catalog_keyword", result))
                 # Ollama requires one result per emitted call.
@@ -249,6 +249,11 @@ def run_agent(question):
                     result = execute_tool(name, args)
                 except Exception as exc:
                     result = {"error": str(exc)}
+                if name == "catalog_keyword_vocabulary" and not result.get("error"):
+                    grounded_keyword_labels.update(
+                        catalog_sets.media_search._norm(item["name"])
+                        for item in result.get("keywords", []) if item.get("name")
+                    )
                 print("<", json.dumps(result, ensure_ascii=False))
                 print(
                     f"[PERF] tool {name}",
