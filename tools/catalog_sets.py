@@ -415,8 +415,9 @@ def results(handle, limit=10):
         key=lambda x: (x.get("rating") or 0, x.get("voteCount") or 0),
         reverse=True,
     )
-    # Keep the LLM context deliberately compact. Full Seerr details are useful
-    # while filtering, but the final answer only needs identity/ranking fields.
+    # Keep the LLM context compact, but include the catalogue synopsis so the
+    # final natural-language answer can describe results without model-memory
+    # fabrication. Semantic filtering fields stay internal.
     compact = []
     for item in details[:max(1, min(int(limit), 20))]:
         compact.append({
@@ -426,6 +427,7 @@ def results(handle, limit=10):
             "releaseDate": item.get("releaseDate"),
             "rating": item.get("rating"),
             "voteCount": item.get("voteCount"),
+            "overview": item.get("overview"),
         })
     result = {
         "set": handle,
