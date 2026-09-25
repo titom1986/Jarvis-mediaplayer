@@ -1,0 +1,170 @@
+Seed Agent - qwen3:4b-instruct
+
+> 
+--- Agent ---
+[PERF] agent_llm_1 {"wall_s": 243.304, "load_ms": 2629.1, "prompt_eval_ms": 158965.2, "eval_ms": 81666.9, "prompt_tokens": 1899, "output_tokens": 126}
+> catalog_genre({'name': 'Science Fiction', 'media_type': 'movie'})
+> catalog_person({'name': 'Tom Cruise', 'media_type': 'movie'})
+> catalog_years({'year_from': 2000, 'year_to': 2015, 'media_type': 'movie'})
+> catalog_keyword({'name': 'extraterrestrial', 'media_type': 'movie'})
+[SEERR] {"params": {"page": 1, "query": "extraterrestrial"}, "path": "search/keyword", "status": 200, "wall_s": 0.012}
+[PLAN] keyword_grounding {"labels": ["catching extraterre trial ", "extraterre trial", "extraterre trial ", "extraterre trial animal", "extraterre trial cap ule", "extraterre trial encounter", "extraterre trial environment", "extraterre trial humanoid ", "extraterre trial life", "extraterre trial life form", "extraterre trial technology", "extraterre trial threat"]}
+[PERF] agent_llm_2 {"wall_s": 37.122, "load_ms": 2.3, "prompt_eval_ms": 21416.5, "eval_ms": 15629.3, "prompt_tokens": 2247, "output_tokens": 22}
+> catalog_keyword_vocabulary({'query': 'alien'})
+[SEERR] {"params": {"page": 1, "query": "alien"}, "path": "search/keyword", "status": 200, "wall_s": 0.009}
+< {"query": "alien", "count": 12, "keywords": [{"id": 9951, "name": "alien"}, {"id": 362476, "name": "alien (2025)"}, {"id": 220392, "name": "alien parasites"}, {"id": 192962, "name": "alien attack"}, {"id": 242295, "name": "alien abomination"}, {"id": 244406, "name": "illegal alien"}, {"id": 300403, "name": "alien family"}, {"id": 12553, "name": "alien abduction"}, {"id": 15250, "name": "alien infection"}, {"id": 183787, "name": "alien monster"}, {"id": 288935, "name": "alien blood"}, {"id": 209193, "name": "alien object"}]}
+[PERF] tool catalog_keyword_vocabulary {"wall_s": 0.009}
+[PERF] agent_llm_3 {"wall_s": 83.768, "load_ms": 2.4, "prompt_eval_ms": 23848.6, "eval_ms": 59819.7, "prompt_tokens": 2515, "output_tokens": 72}
+> catalog_keyword({'name': 'alien', 'media_type': 'movie', 'aliases': ['alien (2025)', 'alien parasites', 'alien attack', 'alien abomination', 'alien abduction', 'alien infection', 'alien monster', 'alien blood', 'alien object']})
+[PLAN] batch {"exclude_groups": {}, "include_groups": {"0": ["catalog_genre", "catalog_person", "catalog_years", "catalog_keyword"]}}
+[PLAN] group_start {"constraints": [{"args": {"media_type": "movie", "name": "Science Fiction"}, "tool": "catalog_genre"}, {"args": {"media_type": "movie", "name": "Tom Cruise"}, "tool": "catalog_person"}, {"args": {"media_type": "movie", "year_from": 2000, "year_to": 2015}, "tool": "catalog_years"}, {"args": {"aliases": ["alien (2025)", "alien parasites", "alien attack", "alien abomination", "alien abduction", "alien infection", "alien monster", "alien blood", "alien object"], "media_type": "movie", "name": "alien"}, "tool": "catalog_keyword"}], "group": "0", "source": null}
+[SEERR] {"params": {"language": "en"}, "path": "genres/movie", "status": 200, "wall_s": 0.006}
+[SEERR] {"params": {"language": "en"}, "path": "genres/movie", "status": 200, "wall_s": 0.006}
+[SEERR] {"params": {"genre": "878", "page": 1, "sortBy": "popularity.desc"}, "path": "discover/movies", "status": 200, "wall_s": 0.02}
+[CATALOG] estimate {"args": {"media_type": "movie", "name": "Science Fiction"}, "count": 20001, "error": null, "kind": "catalog_genre", "seed_ids": null, "wall_s": 0.033}
+[SEERR] {"params": {"query": "Tom%20Cruise"}, "path": "search", "status": 200, "wall_s": 0.145}
+[SEERR] {"params": null, "path": "person/500/combined_credits", "status": 200, "wall_s": 0.252}
+[CATALOG] estimate {"args": {"media_type": "movie", "name": "Tom Cruise"}, "count": 97, "error": null, "kind": "catalog_person", "seed_ids": 97, "wall_s": 0.401}
+[SEERR] {"params": {"page": 1, "primaryReleaseDateGte": "2000-01-01", "primaryReleaseDateLte": "2015-12-31", "sortBy": "popularity.desc"}, "path": "discover/movies", "status": 200, "wall_s": 0.156}
+[CATALOG] estimate {"args": {"media_type": "movie", "year_from": 2000, "year_to": 2015}, "count": 20001, "error": null, "kind": "catalog_years", "seed_ids": null, "wall_s": 0.157}
+[SEERR] {"params": {"keywords": "9951", "page": 1, "sortBy": "popularity.desc"}, "path": "discover/movies", "status": 200, "wall_s": 0.153}
+[SEERR] {"params": {"keywords": "362476", "page": 1, "sortBy": "popularity.desc"}, "path": "discover/movies", "status": 200, "wall_s": 0.135}
+[SEERR] {"params": {"keywords": "220392", "page": 1, "sortBy": "popularity.desc"}, "path": "discover/movies", "status": 200, "wall_s": 0.134}
+[SEERR] {"params": {"keywords": "192962", "page": 1, "sortBy": "popularity.desc"}, "path": "discover/movies", "status": 200, "wall_s": 0.14}
+[SEERR] {"params": {"keywords": "242295", "page": 1, "sortBy": "popularity.desc"}, "path": "discover/movies", "status": 200, "wall_s": 0.131}
+[SEERR] {"params": {"keywords": "12553", "page": 1, "sortBy": "popularity.desc"}, "path": "discover/movies", "status": 200, "wall_s": 0.141}
+[SEERR] {"params": {"keywords": "15250", "page": 1, "sortBy": "popularity.desc"}, "path": "discover/movies", "status": 200, "wall_s": 0.14}
+[SEERR] {"params": {"keywords": "183787", "page": 1, "sortBy": "popularity.desc"}, "path": "discover/movies", "status": 200, "wall_s": 0.166}
+[SEERR] {"params": {"keywords": "288935", "page": 1, "sortBy": "popularity.desc"}, "path": "discover/movies", "status": 200, "wall_s": 0.133}
+[SEERR] {"params": {"keywords": "209193", "page": 1, "sortBy": "popularity.desc"}, "path": "discover/movies", "status": 200, "wall_s": 0.135}
+[CATALOG] estimate {"args": {"aliases": ["alien (2025)", "alien parasites", "alien attack", "alien abomination", "alien abduction", "alien infection", "alien monster", "alien blood", "alien object"], "media_type": "movie", "name": "alien"}, "count": 1593, "error": null, "kind": "catalog_keyword", "seed_ids": null, "wall_s": 1.411}
+[CATALOG] seed {"actual_count": 97, "args": {"media_type": "movie", "name": "Tom Cruise"}, "error": null, "estimated_count": 97, "kind": "catalog_person", "set": "s1", "wall_s": 0.0}
+[SEERR] {"params": null, "path": "movie/7446", "status": 200, "wall_s": 0.092}
+[SEERR] {"params": null, "path": "movie/75780", "status": 200, "wall_s": 0.108}
+[SEERR] {"params": null, "path": "movie/177677", "status": 200, "wall_s": 0.114}
+[SEERR] {"params": null, "path": "movie/361743", "status": 200, "wall_s": 0.141}
+[SEERR] {"params": null, "path": "movie/1538", "status": 200, "wall_s": 0.166}
+[SEERR] {"params": null, "path": "movie/40196", "status": 200, "wall_s": 0.177}
+[SEERR] {"params": null, "path": "movie/1479180", "status": 200, "wall_s": 0.176}
+[SEERR] {"params": null, "path": "movie/575264", "status": 200, "wall_s": 0.044}
+[SEERR] {"params": null, "path": "movie/575265", "status": 200, "wall_s": 0.051}
+[SEERR] {"params": null, "path": "movie/337170", "status": 200, "wall_s": 0.217}
+[SEERR] {"params": null, "path": "movie/2604", "status": 200, "wall_s": 0.055}
+[SEERR] {"params": null, "path": "movie/833818", "status": 200, "wall_s": 0.151}
+[SEERR] {"params": null, "path": "movie/975388", "status": 200, "wall_s": 0.147}
+[SEERR] {"params": null, "path": "movie/818", "status": 200, "wall_s": 0.048}
+[SEERR] {"params": null, "path": "movie/1321757", "status": 200, "wall_s": 0.158}
+[SEERR] {"params": null, "path": "movie/353081", "status": 200, "wall_s": 0.057}
+[SEERR] {"params": null, "path": "movie/1248832", "status": 200, "wall_s": 0.041}
+[SEERR] {"params": null, "path": "movie/343611", "status": 200, "wall_s": 0.045}
+[SEERR] {"params": null, "path": "movie/18221", "status": 200, "wall_s": 0.125}
+[SEERR] {"params": null, "path": "movie/2119", "status": 200, "wall_s": 0.037}
+[SEERR] {"params": null, "path": "movie/74", "status": 200, "wall_s": 0.055}
+[SEERR] {"params": null, "path": "movie/149044", "status": 200, "wall_s": 0.173}
+[SEERR] {"params": null, "path": "movie/705078", "status": 200, "wall_s": 0.17}
+[SEERR] {"params": null, "path": "movie/1497665", "status": 200, "wall_s": 0.136}
+[SEERR] {"params": null, "path": "movie/1483843", "status": 200, "wall_s": 0.141}
+[SEERR] {"params": null, "path": "movie/1158471", "status": 200, "wall_s": 0.133}
+[SEERR] {"params": null, "path": "movie/334", "status": 200, "wall_s": 0.073}
+[SEERR] {"params": null, "path": "movie/1752154", "status": 200, "wall_s": 0.024}
+[SEERR] {"params": null, "path": "movie/75612", "status": 200, "wall_s": 0.032}
+[SEERR] {"params": null, "path": "movie/1113682", "status": 200, "wall_s": 0.128}
+[SEERR] {"params": null, "path": "movie/7520", "status": 200, "wall_s": 0.033}
+[SEERR] {"params": null, "path": "movie/765522", "status": 200, "wall_s": 0.143}
+[SEERR] {"params": null, "path": "movie/345", "status": 200, "wall_s": 0.126}
+[SEERR] {"params": null, "path": "movie/1133142", "status": 200, "wall_s": 0.145}
+[SEERR] {"params": null, "path": "movie/11873", "status": 200, "wall_s": 0.047}
+[SEERR] {"params": null, "path": "movie/616", "status": 200, "wall_s": 0.047}
+[SEERR] {"params": null, "path": "movie/1022047", "status": 200, "wall_s": 0.135}
+[SEERR] {"params": null, "path": "movie/1903", "status": 200, "wall_s": 0.024}
+[SEERR] {"params": null, "path": "movie/881", "status": 200, "wall_s": 0.022}
+[SEERR] {"params": null, "path": "movie/37233", "status": 200, "wall_s": 0.037}
+[SEERR] {"params": null, "path": "movie/628", "status": 200, "wall_s": 0.025}
+[SEERR] {"params": null, "path": "movie/298339", "status": 200, "wall_s": 0.139}
+[SEERR] {"params": null, "path": "movie/467062", "status": 200, "wall_s": 0.028}
+[SEERR] {"params": null, "path": "movie/380", "status": 200, "wall_s": 0.029}
+[SEERR] {"params": null, "path": "movie/1229934", "status": 200, "wall_s": 0.138}
+[SEERR] {"params": null, "path": "movie/984430", "status": 200, "wall_s": 0.149}
+[SEERR] {"params": null, "path": "movie/9346", "status": 200, "wall_s": 0.038}
+[SEERR] {"params": null, "path": "movie/126314", "status": 200, "wall_s": 0.17}
+[SEERR] {"params": null, "path": "movie/689705", "status": 200, "wall_s": 0.592}
+[SEERR] {"params": null, "path": "movie/1263766", "status": 200, "wall_s": 0.025}
+[SEERR] {"params": null, "path": "movie/393076", "status": 200, "wall_s": 0.133}
+[SEERR] {"params": null, "path": "movie/1736095", "status": 200, "wall_s": 0.025}
+[SEERR] {"params": null, "path": "movie/137113", "status": 200, "wall_s": 0.042}
+[SEERR] {"params": null, "path": "movie/1737349", "status": 200, "wall_s": 0.135}
+[SEERR] {"params": null, "path": "movie/1545109", "status": 200, "wall_s": 0.165}
+[SEERR] {"params": null, "path": "movie/19114", "status": 200, "wall_s": 0.028}
+[SEERR] {"params": null, "path": "movie/565663", "status": 200, "wall_s": 0.132}
+[SEERR] {"params": null, "path": "movie/4515", "status": 200, "wall_s": 0.138}
+[SEERR] {"params": null, "path": "movie/9390", "status": 200, "wall_s": 0.046}
+[SEERR] {"params": null, "path": "movie/554405", "status": 200, "wall_s": 0.127}
+[SEERR] {"params": null, "path": "movie/282035", "status": 200, "wall_s": 0.035}
+[SEERR] {"params": null, "path": "movie/180", "status": 200, "wall_s": 0.045}
+[SEERR] {"params": null, "path": "movie/36131", "status": 200, "wall_s": 0.887}
+[SEERR] {"params": null, "path": "movie/1107128", "status": 200, "wall_s": 0.028}
+[SEERR] {"params": null, "path": "movie/954", "status": 200, "wall_s": 0.025}
+[SEERR] {"params": null, "path": "movie/1504944", "status": 200, "wall_s": 0.152}
+[SEERR] {"params": null, "path": "movie/955", "status": 200, "wall_s": 0.036}
+[SEERR] {"params": null, "path": "movie/956", "status": 200, "wall_s": 0.037}
+[SEERR] {"params": null, "path": "movie/11967", "status": 200, "wall_s": 0.018}
+[SEERR] {"params": null, "path": "movie/673205", "status": 200, "wall_s": 0.141}
+[SEERR] {"params": null, "path": "movie/359871", "status": 200, "wall_s": 0.016}
+[SEERR] {"params": null, "path": "movie/999621", "status": 200, "wall_s": 0.025}
+[SEERR] {"params": null, "path": "movie/11976", "status": 200, "wall_s": 0.031}
+[SEERR] {"params": null, "path": "movie/80585", "status": 200, "wall_s": 0.031}
+[SEERR] {"params": null, "path": "movie/37834", "status": 200, "wall_s": 0.038}
+[SEERR] {"params": null, "path": "movie/2253", "status": 200, "wall_s": 0.024}
+[SEERR] {"params": null, "path": "movie/30416", "status": 200, "wall_s": 0.04}
+[SEERR] {"params": null, "path": "movie/1231307", "status": 200, "wall_s": 0.14}
+[SEERR] {"params": null, "path": "movie/965251", "status": 200, "wall_s": 0.684}
+[SEERR] {"params": null, "path": "movie/291537", "status": 200, "wall_s": 0.12}
+[SEERR] {"params": null, "path": "movie/1504953", "status": 200, "wall_s": 0.407}
+[SEERR] {"params": null, "path": "movie/1595856", "status": 200, "wall_s": 0.133}
+[SEERR] {"params": null, "path": "movie/227", "status": 200, "wall_s": 0.025}
+[SEERR] {"params": null, "path": "movie/118483", "status": 200, "wall_s": 0.134}
+[SEERR] {"params": null, "path": "movie/56292", "status": 200, "wall_s": 0.054}
+[SEERR] {"params": null, "path": "movie/1701851", "status": 200, "wall_s": 0.147}
+[SEERR] {"params": null, "path": "movie/10627", "status": 200, "wall_s": 0.868}
+[SEERR] {"params": null, "path": "movie/1395426", "status": 200, "wall_s": 0.153}
+[SEERR] {"params": null, "path": "movie/744", "status": 200, "wall_s": 0.077}
+[SEERR] {"params": null, "path": "movie/834027", "status": 200, "wall_s": 0.06}
+[SEERR] {"params": null, "path": "movie/18172", "status": 200, "wall_s": 0.145}
+[SEERR] {"params": null, "path": "movie/1079535", "status": 200, "wall_s": 0.179}
+[SEERR] {"params": null, "path": "movie/1322488", "status": 200, "wall_s": 0.176}
+[SEERR] {"params": null, "path": "movie/11259", "status": 200, "wall_s": 0.162}
+[SEERR] {"params": null, "path": "movie/1728957", "status": 200, "wall_s": 0.724}
+[SEERR] {"params": null, "path": "movie/33676", "status": 200, "wall_s": 1.186}
+[SEERR] {"params": null, "path": "movie/1209264", "status": 200, "wall_s": 1.273}
+[CATALOG] refine {"after": 2, "args": {"aliases": ["alien (2025)", "alien parasites", "alien attack", "alien abomination", "alien abduction", "alien infection", "alien monster", "alien blood", "alien object"], "media_type": "movie", "name": "alien"}, "before": 97, "error": null, "kind": "catalog_keyword", "wall_s": 2.263}
+[SEERR] {"params": null, "path": "movie/74", "status": 200, "wall_s": 0.05}
+[SEERR] {"params": null, "path": "movie/137113", "status": 200, "wall_s": 0.063}
+[CATALOG] refine {"after": 2, "args": {"media_type": "movie", "name": "Science Fiction"}, "before": 2, "error": null, "kind": "catalog_genre", "wall_s": 0.068}
+[SEERR] {"params": null, "path": "movie/74", "status": 200, "wall_s": 0.04}
+[SEERR] {"params": null, "path": "movie/137113", "status": 200, "wall_s": 0.053}
+[CATALOG] refine {"after": 2, "args": {"media_type": "movie", "year_from": 2000, "year_to": 2015}, "before": 2, "error": null, "kind": "catalog_years", "wall_s": 0.058}
+[PLAN] group_done {"group": "0", "result": {"count": 2, "label": "years:2000-2015", "set": "s4"}, "source": null}
+[PLAN] included {"count": 2, "set": "s4"}
+[CATALOG] results_start {"candidate_count": 2, "limit": 10, "set": "s4"}
+[SEERR] {"params": null, "path": "movie/74", "status": 200, "wall_s": 0.034}
+[SEERR] {"params": null, "path": "movie/137113", "status": 200, "wall_s": 0.045}
+[CATALOG] results_done {"candidate_count": 2, "detail_count": 2, "returned_count": 2, "set": "s4", "wall_s": 0.049}
+< composed {"set": "s4", "count": 2, "grounded_results": {"set": "s4", "count": 2, "results": [{"mediaType": "movie", "id": 137113, "title": "Edge of Tomorrow", "releaseDate": "2014-05-27", "rating": 7.643, "voteCount": 15531, "overview": "Major Bill Cage is an officer who has never seen a day of combat when he is unceremoniously demoted and dropped into combat. Cage is killed within minutes, managing to take an alpha alien down with him. He awakens back at the beginning of the same day and is forced to fight and die again... and again - as physical contact with the alien has thrown him into a time loop."}, {"mediaType": "movie", "id": 74, "title": "War of the Worlds", "releaseDate": "2005-06-28", "rating": 6.6, "voteCount": 9551, "overview": "Ray Ferrier is a divorced dockworker and less-than-perfect father. Soon after his ex-wife and her new husband drop off his teenage son and young daughter for a rare weekend visit, a strange and powerful lightning storm touches down."}]}, "results_loaded": true, "response_contract": "These grounded_results are the only catalogue media you may name as search results. Titles, dates, ratings, and descriptions must come only from grounded_results; do not add, substitute, or infer factual media details from model memory."}
+[PERF] catalog_batch {"wall_s": 4.441}
+[PERF] agent_llm_4 {"wall_s": 263.279, "load_ms": 3.7, "prompt_eval_ms": 40706.2, "eval_ms": 222429.0, "prompt_tokens": 2984, "output_tokens": 220}
+[PERF] total {"wall_s": 631.937, "ollama_calls": 4, "tool_calls": 6}
+
+═══ RÉPONSE ═══
+
+Voici les films de science-fiction avec Tom Cruise, sortis entre 2000 et 2015, et incluant des extraterrestres :
+
+1. **Edge of Tomorrow**  
+   - **Date de sortie** : 27 mai 2014  
+   - **Note** : 7,64/10  
+   - **Résumé** : Major Bill Cage, un officier qui n'a jamais vu de combat, est démis de ses fonctions et placé en situation de combat. Il meurt rapidement, mais réussit à faire tomber un extraterrestre. Il se réveille à l'origine de la même journée et doit combattre et mourir à nouveau... et à nouveau, car le contact avec l'extraterrestre l'a jeté dans un cycle temporel.
+
+2. **War of the Worlds**  
+   - **Date de sortie** : 28 juin 2005  
+   - **Note** : 6,6/
+> 
+AGENT_EXIT=0
