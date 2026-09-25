@@ -251,7 +251,7 @@ class AgentRoutingTests(unittest.TestCase):
             "title": "Alpha", "releaseDate": "2001-04-05",
             "rating": 8.1, "overview": "Grounded synopsis."
         }]})
-        self.assertEqual(text, "Alpha (2001) — 8.1/10\\nGrounded synopsis.")
+        self.assertEqual(text, "Alpha (2001) — 8.1/10\nGrounded synopsis.")
 
     @patch("agent.radarr.request_movie")
     @patch("agent.requests.post")
