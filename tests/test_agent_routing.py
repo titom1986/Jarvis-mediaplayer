@@ -290,6 +290,46 @@ class AgentRoutingTests(unittest.TestCase):
         self.assertIn("1 downloading", text)
         self.assertIn("progression moyenne : 75 %", text)
 
+    @patch("agent.radarr.request_movie")
+    def test_multi_movie_plan_requires_confirmation_before_writes(self, request_movie):
+        agent.PENDING_CONFIRMATION = {
+            "movies": [
+                {"tmdb_id": 101, "title": "Alpha"},
+                {"tmdb_id": 102, "title": "Beta"},
+            ],
+            "french": True,
+        }
+        request_movie.return_value = {"added": True}
+        self.assertIsNotNone(agent.PENDING_CONFIRMATION)
+        request_movie.assert_not_called()
+
+        agent.run_agent("oui")
+
+        self.assertEqual(request_movie.call_count, 2)
+        request_movie.assert_any_call(101, french=True)
+        request_movie.assert_any_call(102, french=True)
+        self.assertIsNone(agent.PENDING_CONFIRMATION)
+
+    @patch("agent.radarr.request_movie")
+    @patch("agent.requests.post")
+    def test_non_confirmation_cancels_pending_plan_without_write(self, post, request_movie):
+        agent.PENDING_CONFIRMATION = {
+            "movies": [
+                {"tmdb_id": 101, "title": "Alpha"},
+                {"tmdb_id": 102, "title": "Beta"},
+            ],
+            "french": True,
+        }
+        class Response:
+            def raise_for_status(self): pass
+            def json(self): return {"message": {"role": "assistant", "content": "annulé"}}
+        post.return_value = Response()
+
+        agent.run_agent("non laisse tomber")
+
+        request_movie.assert_not_called()
+        self.assertIsNone(agent.PENDING_CONFIRMATION)
+
     def test_unknown_tool_is_nonfatal(self):
         self.assertIn("error", agent.execute_tool("does_not_exist", {}))
 
