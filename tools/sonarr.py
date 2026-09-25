@@ -253,14 +253,14 @@ REQUEST_TOOL = {
         "parameters": {
             "type": "object",
             "properties": {
-                "tvdb_id": {"type": "integer", "description": "TVDB ID exact de la série"},
+                "tmdb_id": {"type": "integer", "description": "TMDB ID exact de la série retourné par le catalogue Seerr"},
                 "scope": {"type": "string", "enum": ["series", "season", "episode"]},
                 "season": {"type": "integer", "minimum": 0},
                 "episode": {"type": "integer", "minimum": 1},
                 "french": {"type": "boolean", "default": False},
                 "force": {"type": "boolean", "default": False, "description": "true when user explicitly asks to re-download/re-request"}
             },
-            "required": ["tvdb_id", "scope"]
+            "required": ["tmdb_id", "scope"]
         }
     }
 }
