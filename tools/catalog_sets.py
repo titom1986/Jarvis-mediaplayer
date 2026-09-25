@@ -539,8 +539,13 @@ SUBTRACT_TOOL = _tool(
 
 EXECUTE_TOOL = _tool(
     "catalog_execute",
-    "Execute all catalogue constraints declared for the current user request. Call exactly once after every include/exclude constraint has been declared and any uncertain keyword has been grounded. Python chooses the cheapest subset and performs all set algebra; do not combine or subtract catalogue sets yourself.",
-    {},
+    "Execute all catalogue constraints declared for the current user request. Call exactly once after every include/exclude constraint has been declared and any uncertain keyword has been grounded. Python chooses the cheapest subset and performs all set algebra; do not combine or subtract catalogue sets yourself. Set continue_for_action=true only when the user's request still requires an action on one of the returned media (for example add/download); otherwise omit it so catalogue results are returned directly without another model turn.",
+    {
+        "continue_for_action": {
+            "type": "boolean",
+            "description": "true only when another tool action must be selected from the grounded results"
+        }
+    },
     [],
 )
 
