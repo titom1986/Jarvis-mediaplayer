@@ -71,11 +71,22 @@ class HttpContractTests(unittest.TestCase):
             "languages": [{"name": "French"}], "downloadClient": "Deluge"
         }]}
         with patch.dict(sonarr.SERVICES, {"sonarr": cfg}), patch("tools.sonarr.requests.get") as get:
-            get.side_effect = [response(series), response(queue)]
+            get.side_effect = [response(queue), response(series)]
             result = sonarr.queue_status("Show")
             self.assertTrue(result["inQueue"])
             self.assertEqual(result["items"][0]["sizeleft"], 250)
-            self.assertEqual(get.call_args_list[1].kwargs["params"], {"page": 1, "pageSize": 100})
+            self.assertEqual(get.call_args_list[0].kwargs["params"], {"page": 1, "pageSize": 100})
+
+    def test_sonarr_queue_title_matching_ignores_punctuation(self):
+        cfg = {"url": "http://sonarr", "api_key": "secret"}
+        queue = {"records": [{"id": 11, "seriesId": 194, "title": "release", "status": "completed"}]}
+        series = [{"id": 194, "title": "Marvels Spidey and His Amazing Friends"}]
+        with patch.dict(sonarr.SERVICES, {"sonarr": cfg}), patch("tools.sonarr.requests.get") as get:
+            get.side_effect = [response(queue), response(series)]
+            result = sonarr.queue_status("Marvel's Spidey and His Amazing Friends")
+            self.assertTrue(result["found"])
+            self.assertTrue(result["inQueue"])
+            self.assertEqual(result["items"][0]["status"], "completed")
 
     def test_sonarr_title_is_filtered_locally_not_put_in_url(self):
         with patch.dict(sonarr.SERVICES, {"sonarr": {"url": "http://sonarr", "api_key": "secret"}}), patch("tools.sonarr.requests.get", return_value=response([])) as get:
