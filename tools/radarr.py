@@ -299,3 +299,36 @@ REQUEST_TOOL = {
         }
     }
 }
+
+
+REQUEST_MOVIES_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "radarr_request_movies",
+        "description": (
+            "Prépare le téléchargement de PLUSIEURS films groundés du catalogue. "
+            "Utiliser cet outil, et non plusieurs appels radarr_request_movie, lorsque la demande porte sur plusieurs films. "
+            "Python exigera une confirmation humaine avant tout téléchargement."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "movies": {
+                    "type": "array", "minItems": 2,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "tmdb_id": {"type": "integer"},
+                            "title": {"type": "string"}
+                        },
+                        "required": ["tmdb_id", "title"],
+                        "additionalProperties": False
+                    }
+                },
+                "french": {"type": "boolean", "default": False}
+            },
+            "required": ["movies"],
+            "additionalProperties": False
+        }
+    }
+}
