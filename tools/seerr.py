@@ -10,6 +10,18 @@ SEERR_API_KEY = SERVICES["seerr"]["api_key"]
 _PERSON_NAMES = {}
 
 
+def _encoded_query_url(path, query, **extra):
+    """Build Seerr free-text search URLs using RFC 3986 percent encoding.
+
+    Seerr's OpenAPI validator rejects form-style '+' encoding for reserved
+    characters on free-text query endpoints, so requests(params=...) is not
+    sufficient for these endpoints.
+    """
+    pairs = [f"query={quote(str(query), safe='')}"]
+    pairs.extend(f"{quote(str(k), safe='')}={quote(str(v), safe='')}" for k, v in extra.items())
+    return f"{SEERR_URL}/api/v1/{path}?" + "&".join(pairs)
+
+
 def _get(url, **kwargs):
     """GET with diagnostic timing. Never logs headers or API keys."""
     started = time.perf_counter()
@@ -55,9 +67,8 @@ def search(query):
 
     try:
         r = _get(
-            f"{SEERR_URL}/api/v1/search",
+            _encoded_query_url("search", query),
             headers={"X-Api-Key": SEERR_API_KEY},
-            params={"query": query},
             timeout=15,
         )
         r.raise_for_status()
@@ -173,14 +184,8 @@ def search_keyword(query):
         return {"error": "SEERR_API_KEY non configurée"}
 
     try:
-        # Seerr validates this endpoint before its query parser and requires
-        # reserved characters (including spaces) to already be percent-encoded.
-        # Supplying the value through requests' params= is rejected by Seerr even
-        # though requests correctly serializes it on the wire, so build only this
-        # query value explicitly and keep all other endpoints on params=.
-        encoded_query = quote(query, safe="")
         r = _get(
-            f"{SEERR_URL}/api/v1/search/keyword?query={encoded_query}&page=1",
+            _encoded_query_url("search/keyword", query, page=1),
             headers={"X-Api-Key": SEERR_API_KEY},
             timeout=15,
         )
