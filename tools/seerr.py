@@ -1,4 +1,5 @@
 import requests
+from urllib.parse import quote
 import json
 import time
 from config import SERVICES
@@ -172,10 +173,15 @@ def search_keyword(query):
         return {"error": "SEERR_API_KEY non configurée"}
 
     try:
+        # Seerr validates this endpoint before its query parser and requires
+        # reserved characters (including spaces) to already be percent-encoded.
+        # Supplying the value through requests' params= is rejected by Seerr even
+        # though requests correctly serializes it on the wire, so build only this
+        # query value explicitly and keep all other endpoints on params=.
+        encoded_query = quote(query, safe="")
         r = _get(
-            f"{SEERR_URL}/api/v1/search/keyword",
+            f"{SEERR_URL}/api/v1/search/keyword?query={encoded_query}&page=1",
             headers={"X-Api-Key": SEERR_API_KEY},
-            params={"query": query, "page": 1},
             timeout=15,
         )
         if not r.ok:
