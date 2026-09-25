@@ -1,8 +1,6 @@
 import requests
 import json
 import time
-from urllib.parse import quote
-
 from config import SERVICES
 
 SEERR_URL = (SERVICES["seerr"]["url"] or "http://127.0.0.1:5055").rstrip("/")
@@ -58,7 +56,7 @@ def search(query):
         r = _get(
             f"{SEERR_URL}/api/v1/search",
             headers={"X-Api-Key": SEERR_API_KEY},
-            params={"query": quote(query, safe="")},
+            params={"query": query},
             timeout=15,
         )
         r.raise_for_status()
@@ -180,7 +178,13 @@ def search_keyword(query):
             params={"query": query, "page": 1},
             timeout=15,
         )
-        r.raise_for_status()
+        if not r.ok:
+            body = (r.text or "").strip()
+            return {
+                "error": f"Recherche keyword Seerr impossible : HTTP {r.status_code}",
+                "query": query,
+                "response": body[:1000],
+            }
         return r.json()
     except requests.RequestException as e:
         return {
