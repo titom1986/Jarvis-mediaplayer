@@ -33,7 +33,10 @@ SERVICES = {
 
     "sonarr": {
         "url": os.getenv("SONARR_URL"),
-        "api_key": os.getenv("SONARR_API_KEY")
+        "api_key": os.getenv("SONARR_API_KEY"),
+        "root_folder": os.getenv("SONARR_ROOT_FOLDER"),
+        "default_profile": os.getenv("SONARR_DEFAULT_PROFILE"),
+        "french_profile": os.getenv("SONARR_FRENCH_PROFILE")
     },
 
     "seerr": {
