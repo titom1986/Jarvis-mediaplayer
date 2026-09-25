@@ -1,3 +1,5 @@
+import unicodedata
+
 import requests
 
 from config import SERVICES
@@ -29,14 +31,16 @@ def _get_movies_and_queue():
     return movies_response.json(), queue_response.json().get("records", [])
 
 
-def _find_movie(movies, title):
-    wanted = title.casefold()
+def _title_key(value):
+    value = unicodedata.normalize("NFKD", value or "").casefold()
+    return "".join(ch for ch in value if ch.isalnum())
 
+
+def _find_movie(movies, title):
+    wanted = _title_key(title)
     return next(
-        (
-            movie for movie in movies
-            if movie.get("title", "").casefold() == wanted
-        ),
+        (movie for movie in movies
+         if wanted in {_title_key(movie.get("title")), _title_key(movie.get("originalTitle"))}),
         None
     )
 
@@ -75,16 +79,29 @@ def status(title):
 def queue_status(title):
     try:
         movies, queue = _get_movies_and_queue()
-        movie = _find_movie(movies, title)
+        movie_by_id = {item.get("id"): item for item in movies if item.get("id") is not None}
+        wanted = _title_key(title)
 
+        # Queue is authoritative for download state. Resolve native movieId back
+        # to Radarr metadata and compare both stored and original titles.
+        queue_item = None
+        movie = None
+        for item in queue:
+            candidate = movie_by_id.get(item.get("movieId"))
+            if candidate and wanted in {
+                _title_key(candidate.get("title")),
+                _title_key(candidate.get("originalTitle")),
+            }:
+                queue_item, movie = item, candidate
+                break
+
+        # A known movie can legitimately have no active queue entry.
+        if movie is None:
+            movie = _find_movie(movies, title)
         if movie is None:
             return {"found": False, "title": title, "inQueue": False}
 
         movie_id = movie.get("id")
-        queue_item = next(
-            (item for item in queue if item.get("movieId") == movie_id),
-            None
-        )
 
         if queue_item is None:
             return {
