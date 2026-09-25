@@ -102,7 +102,12 @@ def queue_status(title):
             "trackedDownloadState": queue_item.get("trackedDownloadState"),
             "size": queue_item.get("size"),
             "sizeleft": queue_item.get("sizeleft"),
-            "timeleft": queue_item.get("timeleft")
+            "timeleft": queue_item.get("timeleft"),
+            "estimatedCompletionTime": queue_item.get("estimatedCompletionTime"),
+            "quality": queue_item.get("quality"),
+            "languages": queue_item.get("languages"),
+            "protocol": queue_item.get("protocol"),
+            "downloadClient": queue_item.get("downloadClient")
         }
 
     except (requests.RequestException, RuntimeError) as e:
