@@ -60,6 +60,21 @@ class HttpContractTests(unittest.TestCase):
             self.assertEqual(post.call_args.kwargs["json"]["title"], "Ocean's Eleven & More?")
             self.assertNotIn("Ocean", post.call_args.args[0])
 
+    def test_radarr_queue_resolves_native_movie_id_and_original_title(self):
+        cfg = {"url": "http://radarr", "api_key": "secret"}
+        movies = [{"id": 7, "title": "Titre local", "originalTitle": "Ocean's Eleven"}]
+        queue = {"records": [{
+            "id": 11, "movieId": 7, "title": "release", "status": "downloading",
+            "size": 1000, "sizeleft": 250
+        }]}
+        with patch.dict(radarr.SERVICES, {"radarr": cfg}), patch("tools.radarr.requests.get") as get:
+            get.side_effect = [response(movies), response(queue)]
+            result = radarr.queue_status("Oceans Eleven")
+            self.assertTrue(result["found"])
+            self.assertTrue(result["inQueue"])
+            self.assertEqual(result["status"], "downloading")
+            self.assertEqual(get.call_args_list[1].kwargs["params"], {"page": 1, "pageSize": 100})
+
     def test_sonarr_queue_uses_validated_queue_contract(self):
         cfg = {"url": "http://sonarr", "api_key": "secret"}
         series = [{"id": 7, "title": "Show"}]
