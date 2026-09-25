@@ -130,13 +130,13 @@ class CatalogSetTests(unittest.TestCase):
         self.assertNotIn(5, [x["id"] for x in ranked["results"]])
         self.assertNotIn(6, [x["id"] for x in ranked["results"]])
         self.assertNotIn(7, [x["id"] for x in ranked["results"]])
-        # Final tool payload stays compact: semantic filtering fields and synopsis
-        # are internal mechanics and must not be sent back into the LLM context.
+        # Final tool payload stays compact: semantic filtering fields remain
+        # internal, while the catalogue synopsis grounds natural-language descriptions.
         self.assertEqual(
             set(ranked["results"][0]),
-            {"mediaType", "id", "title", "releaseDate", "rating", "voteCount"},
+            {"mediaType", "id", "title", "releaseDate", "rating", "voteCount", "overview"},
         )
-        self.assertNotIn("overview", ranked["results"][0])
+        self.assertEqual(ranked["results"][0]["overview"], "")
         self.assertNotIn("genres", ranked["results"][0])
         self.assertNotIn("keywords", ranked["results"][0])
 
