@@ -385,16 +385,31 @@ def run_agent(question):
                     }
                 else:
                     if name == "sonarr_request_series":
-                        allowed_ids = {
-                            item.get("id") for item in (grounded_catalogue_results or {}).get("results", [])
+                        tv_items = [
+                            item for item in (grounded_catalogue_results or {}).get("results", [])
                             if item.get("mediaType") == "tv"
-                        }
-                        # Seerr catalogue IDs are TMDB IDs, not TVDB IDs. The write
-                        # path must never pretend they are interchangeable.
-                        result = {
-                            "error": "La série est groundée par TMDB mais Sonarr exige un TVDB ID vérifié.",
-                            "required_action": "Resolve the grounded TV result to a verified TVDB ID before the Sonarr write."
-                        }
+                        ]
+                        requested_tmdb = args.get("tmdb_id")
+                        grounded = next((item for item in tv_items if item.get("id") == requested_tmdb), None)
+                        if grounded is None:
+                            result = {
+                                "error": "Série non vérifiée dans les résultats catalogue de cette requête.",
+                                "required_action": "Ground the requested TV series before requesting it."
+                            }
+                        else:
+                            try:
+                                details = catalog_sets.seerr.media_details(requested_tmdb, "tv")
+                                external = details.get("externalIds") or {}
+                                tvdb_id = external.get("tvdbId")
+                                if not tvdb_id:
+                                    result = {"error": "TVDB ID vérifié absent des détails Seerr pour cette série."}
+                                else:
+                                    write_args = dict(args)
+                                    write_args.pop("tmdb_id", None)
+                                    write_args["tvdb_id"] = int(tvdb_id)
+                                    result = execute_tool(name, write_args)
+                            except Exception as exc:
+                                result = {"error": str(exc)}
                     elif name == "radarr_request_movie":
                         allowed_ids = {
                             item.get("id") for item in (grounded_catalogue_results or {}).get("results", [])
