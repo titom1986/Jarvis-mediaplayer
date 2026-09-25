@@ -172,12 +172,15 @@ class AgentRoutingTests(unittest.TestCase):
         agent.run_agent("films avec Actor entre 2000 et 2005")
 
         results.assert_called_once_with("s1", limit=10)
-        third_payload = post.call_args_list[2].kwargs["json"]
+        fourth_payload = post.call_args_list[3].kwargs["json"]
         tool_payloads = [
             __import__("json").loads(m["content"])
-            for m in third_payload["messages"] if m.get("role") == "tool"
+            for m in fourth_payload["messages"] if m.get("role") == "tool"
         ]
-        composed = next(p["composed"] for p in tool_payloads if "composed" in p)
+        composed = next(
+            p for p in tool_payloads
+            if p.get("results_loaded") and "grounded_results" in p
+        )
         self.assertTrue(composed["results_loaded"])
         self.assertEqual([x["title"] for x in composed["grounded_results"]["results"]], ["Alpha", "Beta"])
         self.assertIn("only catalogue media", composed["response_contract"])
