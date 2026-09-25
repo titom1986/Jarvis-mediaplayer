@@ -62,9 +62,9 @@ class HttpContractTests(unittest.TestCase):
 
     def test_radarr_queue_resolves_native_movie_id_and_original_title(self):
         cfg = {"url": "http://radarr", "api_key": "secret"}
-        movies = [{"id": 7, "title": "Titre local", "originalTitle": "Ocean's Eleven"}]
+        movies = [{"id": 7, "title": "Titre local", "originalTitle": "Titre original différent"}]
         queue = {"records": [{
-            "id": 11, "movieId": 7, "title": "release", "status": "downloading",
+            "id": 11, "movieId": 7, "title": "Oceans.Eleven.2001.1080p.WEB-DL", "status": "downloading",
             "size": 1000, "sizeleft": 250
         }]}
         with patch.dict(radarr.SERVICES, {"radarr": cfg}), patch("tools.radarr.requests.get") as get:
@@ -94,8 +94,9 @@ class HttpContractTests(unittest.TestCase):
 
     def test_sonarr_queue_title_matching_ignores_punctuation(self):
         cfg = {"url": "http://sonarr", "api_key": "secret"}
-        queue = {"records": [{"id": 11, "seriesId": 194, "title": "release", "status": "completed"}]}
-        series = [{"id": 194, "title": "Marvels Spidey and His Amazing Friends"}]
+        queue = {"records": [{"id": 11, "seriesId": 194, "title": "Marvels.Spidey.and.His.Amazing.Friends.S04.FRENCH.1080p.WEB.H264-FW", "status": "completed"}]}
+        # Deliberately different canonical title: this reproduces the live failure.
+        series = [{"id": 194, "title": "Spidey and His Amazing Friends"}]
         with patch.dict(sonarr.SERVICES, {"sonarr": cfg}), patch("tools.sonarr.requests.get") as get:
             get.side_effect = [response(queue), response(series)]
             result = sonarr.queue_status("Marvel's Spidey and His Amazing Friends")
