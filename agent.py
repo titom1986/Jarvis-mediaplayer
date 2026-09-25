@@ -124,7 +124,7 @@ def _model_config():
 def run_agent(question):
     total_started = time.perf_counter()
     catalog_sets.reset()
-    pending_catalog_batch = None
+    pending_catalog_batch = []
     grounded_keyword_labels = set()
     grounded_catalogue_results = None
 
@@ -163,114 +163,100 @@ def run_agent(question):
         message = payload["message"]
         calls = message.get("tool_calls", [])
         if not calls:
-            if pending_catalog_batch is not None:
-                final_content = "Je n'ai pas pu résoudre un concept contre le vocabulaire réel du catalogue."
+            if pending_catalog_batch:
+                final_content = "Je n'ai pas pu finaliser la recherche catalogue : des contraintes déclarées n'ont pas été exécutées."
             else:
                 final_content = message.get("content", "").strip()
             break
 
         messages.append(message)
-        batch_is_constraints = (
-            all(call["function"]["name"] in CATALOG_CONSTRAINT_TOOLS for call in calls)
-            and (len(calls) > 1 or pending_catalog_batch is not None)
+        batch_is_constraints = all(
+            call["function"]["name"] in CATALOG_CONSTRAINT_TOOLS for call in calls
         )
-        batch_entries = []
         pending_tool_messages = []
 
         if batch_is_constraints:
-            started = time.perf_counter()
+            # Constraint calls are declarations, never execution. This makes the
+            # planner independent of whether the model emits one call per turn or
+            # several calls in parallel.
             for call in calls:
                 name = call["function"]["name"]
                 args = call["function"].get("arguments") or {}
                 print(f"> {name}({args})")
-                batch_entries.append((name, args))
                 tool_calls += 1
 
-            # A semantic keyword must be grounded against labels that Seerr/TMDB
-            # actually exposes. Python never chooses synonyms: it only returns
-            # catalogue vocabulary and lets the model select the meaning.
-            ungrounded = []
-            for index, (name, args) in enumerate(batch_entries):
-                if name != "catalog_keyword":
-                    continue
-                labels = [args.get("name"), *(args.get("aliases") or [])]
-                if not labels or any(catalog_sets.media_search._norm(v) not in grounded_keyword_labels for v in labels if v):
-                    ungrounded.append((index, args))
-            if ungrounded:
-                pending_catalog_batch = list(batch_entries)
-                for index, args in ungrounded:
-                    vocabulary = catalog_sets.keyword_vocabulary(args["name"])
-                    labels = [item["name"] for item in vocabulary.get("keywords", [])]
-                    grounded_keyword_labels.update(catalog_sets.media_search._norm(v) for v in labels)
-                    result = {
-                        "grounding_required": True,
-                        "concept": args["name"],
-                        "catalogue_labels": labels,
-                        "required_action": "Choose only labels that match the user's concept. If these labels are insufficient, call catalog_keyword_vocabulary with an alternative English wording and inspect its real catalogue labels. Then call catalog_keyword using only semantically appropriate returned labels as name/aliases; keep the other search constraints unchanged.",
-                    }
-                    pending_tool_messages.append(("catalog_keyword", result))
-                # Ollama requires one result per emitted call.
-                for index, (name, _) in enumerate(batch_entries):
-                    if name != "catalog_keyword":
-                        pending_tool_messages.insert(index, (name, {"accepted": True, "pending_keyword_grounding": True}))
-                print("[PLAN] keyword_grounding", json.dumps({"labels": sorted(grounded_keyword_labels)}, ensure_ascii=False))
-                for name, result in pending_tool_messages:
-                    messages.append({"role": "tool", "tool_name": name, "content": json.dumps(result, ensure_ascii=False)})
-                continue
+                if name == "catalog_keyword":
+                    labels = [args.get("name"), *(args.get("aliases") or [])]
+                    ungrounded = [
+                        value for value in labels if value and
+                        catalog_sets.media_search._norm(value) not in grounded_keyword_labels
+                    ]
+                    if ungrounded:
+                        vocabulary = catalog_sets.keyword_vocabulary(args["name"])
+                        real_labels = [item["name"] for item in vocabulary.get("keywords", [])]
+                        grounded_keyword_labels.update(
+                            catalog_sets.media_search._norm(value) for value in real_labels
+                        )
+                        result = {
+                            "grounding_required": True,
+                            "concept": args["name"],
+                            "catalogue_labels": real_labels,
+                            "error": vocabulary.get("error"),
+                            "diagnostic": vocabulary.get("response"),
+                            "required_action": (
+                                "Choose only real labels matching the user's concept. "
+                                "If insufficient, call catalog_keyword_vocabulary with another "
+                                "English wording. Then redeclare catalog_keyword with grounded "
+                                "name/aliases. Keep all other constraints; they are already pending."
+                            ),
+                        }
+                        pending_tool_messages.append((name, result))
+                        continue
 
-            if pending_catalog_batch is not None:
-                replacements = [entry for entry in batch_entries if entry[0] == "catalog_keyword"]
-                if replacements:
-                    original = [entry for entry in pending_catalog_batch if entry[0] != "catalog_keyword"]
-                    batch_entries = original + replacements
-                    pending_catalog_batch = None
-
-            try:
-                composed = _compose_catalog_batch(batch_entries)
-            except Exception as exc:
-                composed = {"error": str(exc)}
-            if not composed.get("error") and composed.get("set"):
-                # Materialize the deterministic final set immediately. The model
-                # owns semantics; Python owns execution and grounding. This removes
-                # an unnecessary orchestration turn and ensures the model never has
-                # to infer titles from an opaque set/count.
-                grounded_catalogue_results = catalog_sets.results(composed["set"], limit=10)
-                composed["grounded_results"] = grounded_catalogue_results
-                composed["results_loaded"] = True
-                composed["response_contract"] = (
-                    "These grounded_results are the only catalogue media you may name "
-                    "as search results. Titles, dates, ratings, and descriptions must come only "
-                    "from grounded_results; do not add, substitute, or infer factual media details "
-                    "from model memory."
-                )
-            print("< composed", json.dumps(composed, ensure_ascii=False))
-            print("[PERF] catalog_batch", json.dumps(
-                {"wall_s": round(time.perf_counter() - started, 3)}, ensure_ascii=False
-            ))
-            # Ollama expects one tool result per emitted call. Keep declarations
-            # compact and put the deterministic final handle on the last result.
-            for i, (name, args) in enumerate(batch_entries):
-                result = {"accepted": True}
-                if i == len(batch_entries) - 1:
-                    result["composed"] = composed
-                pending_tool_messages.append((name, result))
+                entry = (name, args)
+                if entry not in pending_catalog_batch:
+                    pending_catalog_batch.append(entry)
+                pending_tool_messages.append((name, {
+                    "accepted": True,
+                    "pending_constraints": len(pending_catalog_batch),
+                    "required_action": "Declare any remaining constraints, then call catalog_execute once.",
+                }))
         else:
             for call in calls:
                 name = call["function"]["name"]
                 args = call["function"].get("arguments") or {}
                 print(f"> {name}({args})")
                 started = time.perf_counter()
-                try:
-                    result = execute_tool(name, args)
-                except Exception as exc:
-                    result = {"error": str(exc)}
-                if name == "catalog_results" and not result.get("error"):
-                    grounded_catalogue_results = result
-                if name == "catalog_keyword_vocabulary" and not result.get("error"):
-                    grounded_keyword_labels.update(
-                        catalog_sets.media_search._norm(item["name"])
-                        for item in result.get("keywords", []) if item.get("name")
-                    )
+
+                if name == "catalog_execute":
+                    if not pending_catalog_batch:
+                        result = {"error": "no pending catalogue constraints"}
+                    else:
+                        try:
+                            result = _compose_catalog_batch(pending_catalog_batch)
+                        except Exception as exc:
+                            result = {"error": str(exc)}
+                        if not result.get("error") and result.get("set"):
+                            grounded_catalogue_results = catalog_sets.results(result["set"], limit=10)
+                            result["grounded_results"] = grounded_catalogue_results
+                            result["results_loaded"] = True
+                            result["response_contract"] = (
+                                "These grounded_results are the only catalogue media you may name "
+                                "as search results. Titles, dates, ratings, and descriptions must "
+                                "come only from grounded_results."
+                            )
+                        pending_catalog_batch = []
+                else:
+                    try:
+                        result = execute_tool(name, args)
+                    except Exception as exc:
+                        result = {"error": str(exc)}
+                    if name == "catalog_keyword_vocabulary" and not result.get("error"):
+                        grounded_keyword_labels.update(
+                            catalog_sets.media_search._norm(item["name"])
+                            for item in result.get("keywords", []) if item.get("name")
+                        )
+
                 print("<", json.dumps(result, ensure_ascii=False))
                 print(
                     f"[PERF] tool {name}",
