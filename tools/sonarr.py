@@ -82,8 +82,23 @@ def queue_status(title):
         }
 
         wanted = _title_key(title)
+
+        # First match the actual queue release title. Release names append
+        # season/episode/quality tokens, so the normalized requested title is
+        # expected as a prefix/subsequence at the beginning of that release.
+        queue_match = next(
+            (item for item in records
+             if wanted and _title_key(item.get("title")).startswith(wanted)),
+            None,
+        )
+        if queue_match is not None:
+            series = series_by_id.get(queue_match.get("seriesId"))
+        else:
+            series = None
+
         queued_series_ids = {item.get("seriesId") for item in records}
-        series = next(
+        if series is None:
+            series = next(
             (series_by_id[series_id] for series_id in queued_series_ids
              if series_id in series_by_id
              and _title_key(series_by_id[series_id].get("title")) == wanted),
