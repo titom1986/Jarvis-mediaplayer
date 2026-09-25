@@ -246,7 +246,7 @@ REQUEST_TOOL = {
     "function": {
         "name": "sonarr_request_series",
         "description": (
-            "Ajoute si nécessaire une série TV identifiée par son TVDB ID puis lance une recherche Sonarr. "
+            "Ajoute si nécessaire une série TV identifiée par son TMDB ID catalogue puis lance une recherche Sonarr. "
             "scope=series pour toute la série, season pour une saison entière, episode pour un épisode précis. "
             "Une demande explicite d'un épisode lance EpisodeSearch même si cet épisode possède déjà un fichier."
         ),
