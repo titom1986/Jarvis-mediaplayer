@@ -266,6 +266,30 @@ class AgentRoutingTests(unittest.TestCase):
         agent.run_agent("download a movie")
         request_movie.assert_not_called()
 
+    def test_radarr_completed_queue_does_not_claim_active_download(self):
+        text = agent._render_terminal_tool("radarr_queue_status", {
+            "found": True, "title": "Movie", "inQueue": True,
+            "status": "completed", "trackedDownloadStatus": "ok",
+            "trackedDownloadState": "importPending", "size": 1000, "sizeleft": 0,
+        })
+        self.assertIn("téléchargement terminé", text)
+        self.assertIn("importPending", text)
+        self.assertNotIn("100 %", text)
+
+    def test_sonarr_queue_aggregates_states_and_active_progress(self):
+        text = agent._render_terminal_tool("sonarr_queue_status", {
+            "found": True, "title": "Show", "inQueue": True,
+            "items": [
+                {"status": "completed", "trackedDownloadStatus": "ok", "trackedDownloadState": "importPending", "size": 100, "sizeleft": 0},
+                {"status": "completed", "trackedDownloadStatus": "ok", "trackedDownloadState": "importPending", "size": 100, "sizeleft": 0},
+                {"status": "downloading", "trackedDownloadStatus": "ok", "size": 100, "sizeleft": 25},
+            ],
+        })
+        self.assertIn("2 téléchargement terminé", text)
+        self.assertIn("importPending", text)
+        self.assertIn("1 downloading", text)
+        self.assertIn("progression moyenne : 75 %", text)
+
     def test_unknown_tool_is_nonfatal(self):
         self.assertIn("error", agent.execute_tool("does_not_exist", {}))
 
