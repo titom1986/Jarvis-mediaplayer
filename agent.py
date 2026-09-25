@@ -206,8 +206,12 @@ def _render_terminal_tool(name, result):
             state = _download_state(item)
             states[state] = states.get(state, 0) + 1
         parts = [f"{count} {state}" for state, count in states.items()]
-        active = [p for p in (_progress(item) for item in items)
-                  if p is not None and (item.get("status") or "").casefold() != "completed"]
+        active = [
+            progress for item in items
+            if (item.get("status") or "").casefold() != "completed"
+            for progress in [_progress(item)]
+            if progress is not None
+        ]
         if active:
             parts.append(f"progression moyenne : {round(sum(active) / len(active))} %")
         return f"{title} — " + " ; ".join(parts) + "."
