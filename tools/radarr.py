@@ -84,9 +84,15 @@ def queue_status(title):
 
         # Queue is authoritative for download state. Resolve native movieId back
         # to Radarr metadata and compare both stored and original titles.
-        queue_item = None
-        movie = None
+        queue_item = next(
+            (item for item in queue
+             if wanted and _title_key(item.get("title")).startswith(wanted)),
+            None,
+        )
+        movie = movie_by_id.get(queue_item.get("movieId")) if queue_item else None
         for item in queue:
+            if movie is not None:
+                break
             candidate = movie_by_id.get(item.get("movieId"))
             if candidate and wanted in {
                 _title_key(candidate.get("title")),
