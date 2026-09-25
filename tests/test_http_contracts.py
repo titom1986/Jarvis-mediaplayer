@@ -60,6 +60,23 @@ class HttpContractTests(unittest.TestCase):
             self.assertEqual(post.call_args.kwargs["json"]["title"], "Ocean's Eleven & More?")
             self.assertNotIn("Ocean", post.call_args.args[0])
 
+    def test_sonarr_queue_uses_validated_queue_contract(self):
+        cfg = {"url": "http://sonarr", "api_key": "secret"}
+        series = [{"id": 7, "title": "Show"}]
+        queue = {"records": [{
+            "id": 11, "seriesId": 7, "episodeId": 12, "title": "Episode",
+            "status": "downloading", "size": 1000, "sizeleft": 250,
+            "estimatedCompletionTime": "2026-09-25T12:30:00Z",
+            "quality": {"quality": {"name": "WEBDL-1080p"}},
+            "languages": [{"name": "French"}], "downloadClient": "Deluge"
+        }]}
+        with patch.dict(sonarr.SERVICES, {"sonarr": cfg}), patch("tools.sonarr.requests.get") as get:
+            get.side_effect = [response(series), response(queue)]
+            result = sonarr.queue_status("Show")
+            self.assertTrue(result["inQueue"])
+            self.assertEqual(result["items"][0]["sizeleft"], 250)
+            self.assertEqual(get.call_args_list[1].kwargs["params"], {"page": 1, "pageSize": 100})
+
     def test_sonarr_title_is_filtered_locally_not_put_in_url(self):
         with patch.dict(sonarr.SERVICES, {"sonarr": {"url": "http://sonarr", "api_key": "secret"}}), patch("tools.sonarr.requests.get", return_value=response([])) as get:
             sonarr.status("Marvel's Agents & More?")
