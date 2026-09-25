@@ -166,24 +166,12 @@ class AgentRoutingTests(unittest.TestCase):
             Response({"message": {"role": "assistant", "content": "", "tool_calls": [
                 {"function": {"name": "catalog_execute", "arguments": {}}},
             ]}}),
-            Response({"message": {"role": "assistant", "content": "Alpha et Beta."}}),
         ]
 
         agent.run_agent("films avec Actor entre 2000 et 2005")
 
         results.assert_called_once_with("s1", limit=10)
-        fourth_payload = post.call_args_list[3].kwargs["json"]
-        tool_payloads = [
-            __import__("json").loads(m["content"])
-            for m in fourth_payload["messages"] if m.get("role") == "tool"
-        ]
-        composed = next(
-            p for p in tool_payloads
-            if p.get("results_loaded") and "grounded_results" in p
-        )
-        self.assertTrue(composed["results_loaded"])
-        self.assertEqual([x["title"] for x in composed["grounded_results"]["results"]], ["Alpha", "Beta"])
-        self.assertIn("only catalogue media", composed["response_contract"])
+        self.assertEqual(post.call_count, 3)
 
     @patch("agent.radarr.request_movie", return_value={"added": True, "title": "Alpha"})
     @patch("agent.catalog_sets.results")
@@ -212,17 +200,16 @@ class AgentRoutingTests(unittest.TestCase):
                 {"function": {"name": "catalog_years", "arguments": {"year_from": 2000, "year_to": 2005, "media_type": "movie"}}},
             ]}}),
             Response({"message": {"role": "assistant", "content": "", "tool_calls": [
-                {"function": {"name": "catalog_execute", "arguments": {}}},
+                {"function": {"name": "catalog_execute", "arguments": {"continue_for_action": True}}},
             ]}}),
             Response({"message": {"role": "assistant", "content": "", "tool_calls": [
                 {"function": {"name": "radarr_request_movie", "arguments": {"tmdb_id": 101, "french": False}}}
             ]}}),
-            Response({"message": {"role": "assistant", "content": "Alpha a été ajouté."}}),
         ]
 
         agent.run_agent("trouve un film d'action 2000-2005 et ajoute-le")
         request_movie.assert_called_once_with(101, french=False)
-        self.assertEqual(post.call_count, 5)
+        self.assertEqual(post.call_count, 4)
 
     @patch("agent.radarr.request_movie", return_value={"added": True, "title": "Alpha"})
     def test_action_routing_uses_exact_grounded_identifier(self, request_movie):
@@ -253,12 +240,31 @@ class AgentRoutingTests(unittest.TestCase):
             Response({"message": {"role": "assistant", "content": "", "tool_calls": [
                 {"function": {"name": "catalog_execute", "arguments": {}}},
             ]}}),
-            Response({"message": {"role": "assistant", "content": "Alpha."}}),
         ]
         with patch("agent.catalog_sets.keyword_vocabulary", return_value={"keywords": [{"id": 4563, "name": "virtual reality"}]}):
             agent.run_agent("film 2000-2005 sur la réalité virtuelle")
         execute_group.assert_called_once()
         results.assert_called_once()
+
+    def test_catalogue_renderer_uses_grounded_fields_directly(self):
+        text = agent._render_catalogue_results({"results": [{
+            "title": "Alpha", "releaseDate": "2001-04-05",
+            "rating": 8.1, "overview": "Grounded synopsis."
+        }]})
+        self.assertEqual(text, "Alpha (2001) — 8.1/10\\nGrounded synopsis.")
+
+    @patch("agent.radarr.request_movie")
+    @patch("agent.requests.post")
+    def test_agent_rejects_ungrounded_radarr_write(self, post, request_movie):
+        class Response:
+            def raise_for_status(self): pass
+            def json(self):
+                return {"message": {"role": "assistant", "content": "", "tool_calls": [
+                    {"function": {"name": "radarr_request_movie", "arguments": {"tmdb_id": 999}}}
+                ]}}
+        post.return_value = Response()
+        agent.run_agent("download a movie")
+        request_movie.assert_not_called()
 
     def test_unknown_tool_is_nonfatal(self):
         self.assertIn("error", agent.execute_tool("does_not_exist", {}))
