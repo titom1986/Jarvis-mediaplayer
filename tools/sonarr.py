@@ -1,3 +1,6 @@
+import re
+import unicodedata
+
 import requests
 
 from config import SERVICES
@@ -46,25 +49,20 @@ def status(title):
         return {"error": f"Erreur Sonarr : {e}"}
 
 
+def _title_key(value):
+    value = unicodedata.normalize("NFKD", value or "").casefold()
+    return "".join(ch for ch in value if ch.isalnum())
+
+
 def queue_status(title):
     cfg = SERVICES["sonarr"]
     if not cfg["api_key"]:
         return {"error": "SONARR_API_KEY non configurée"}
     headers = {"X-Api-Key": cfg["api_key"]}
     try:
-        series_response = requests.get(
-            f'{cfg["url"]}/api/v3/series', headers=headers, timeout=10
-        )
-        series_response.raise_for_status()
-        wanted = title.casefold()
-        series = next(
-            (item for item in series_response.json()
-             if item.get("title", "").casefold() == wanted),
-            None,
-        )
-        if series is None:
-            return {"found": False, "title": title, "inQueue": False}
-
+        # Queue is the source of truth for a download-status question. Resolve
+        # its native seriesId values back to Sonarr series instead of requiring
+        # the user's title to exactly equal Sonarr's stored punctuation.
         queue_response = requests.get(
             f'{cfg["url"]}/api/v3/queue',
             headers=headers,
@@ -73,6 +71,25 @@ def queue_status(title):
         )
         queue_response.raise_for_status()
         records = queue_response.json().get("records", [])
+
+        series_response = requests.get(
+            f'{cfg["url"]}/api/v3/series', headers=headers, timeout=10
+        )
+        series_response.raise_for_status()
+        series_by_id = {
+            item.get("id"): item for item in series_response.json()
+            if item.get("id") is not None
+        }
+
+        wanted = _title_key(title)
+        series = next(
+            (item for item in series_by_id.values()
+             if _title_key(item.get("title")) == wanted),
+            None,
+        )
+        if series is None:
+            return {"found": False, "title": title, "inQueue": False}
+
         items = [item for item in records if item.get("seriesId") == series.get("id")]
         if not items:
             return {"found": True, "title": series.get("title"), "inQueue": False, "items": []}
@@ -101,7 +118,6 @@ def queue_status(title):
         }
     except requests.RequestException as e:
         return {"error": f"Erreur Sonarr : {e}"}
-
 
 QUEUE_TOOL = {
     "type": "function",
