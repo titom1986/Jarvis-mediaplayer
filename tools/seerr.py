@@ -290,6 +290,7 @@ def media_details(media_id, media_type="movie"):
         "rating": data.get("voteAverage"),
         "voteCount": data.get("voteCount"),
         "overview": data.get("overview") or "",
+        "externalIds": data.get("externalIds") or {},
     }
 
 MEDIA_DETAILS_TOOL = {
