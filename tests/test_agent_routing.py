@@ -159,7 +159,12 @@ class AgentRoutingTests(unittest.TestCase):
         post.side_effect = [
             Response({"message": {"role": "assistant", "content": "", "tool_calls": [
                 {"function": {"name": "catalog_person", "arguments": {"name": "Actor", "media_type": "movie"}}},
+            ]}}),
+            Response({"message": {"role": "assistant", "content": "", "tool_calls": [
                 {"function": {"name": "catalog_years", "arguments": {"year_from": 2000, "year_to": 2005, "media_type": "movie"}}},
+            ]}}),
+            Response({"message": {"role": "assistant", "content": "", "tool_calls": [
+                {"function": {"name": "catalog_execute", "arguments": {}}},
             ]}}),
             Response({"message": {"role": "assistant", "content": "Alpha et Beta."}}),
         ]
@@ -167,10 +172,10 @@ class AgentRoutingTests(unittest.TestCase):
         agent.run_agent("films avec Actor entre 2000 et 2005")
 
         results.assert_called_once_with("s1", limit=10)
-        second_payload = post.call_args_list[1].kwargs["json"]
+        third_payload = post.call_args_list[2].kwargs["json"]
         tool_payloads = [
             __import__("json").loads(m["content"])
-            for m in second_payload["messages"] if m.get("role") == "tool"
+            for m in third_payload["messages"] if m.get("role") == "tool"
         ]
         composed = next(p["composed"] for p in tool_payloads if "composed" in p)
         self.assertTrue(composed["results_loaded"])
@@ -199,7 +204,12 @@ class AgentRoutingTests(unittest.TestCase):
         post.side_effect = [
             Response({"message": {"role": "assistant", "content": "", "tool_calls": [
                 {"function": {"name": "catalog_genre", "arguments": {"name": "Action", "media_type": "movie"}}},
+            ]}}),
+            Response({"message": {"role": "assistant", "content": "", "tool_calls": [
                 {"function": {"name": "catalog_years", "arguments": {"year_from": 2000, "year_to": 2005, "media_type": "movie"}}},
+            ]}}),
+            Response({"message": {"role": "assistant", "content": "", "tool_calls": [
+                {"function": {"name": "catalog_execute", "arguments": {}}},
             ]}}),
             Response({"message": {"role": "assistant", "content": "", "tool_calls": [
                 {"function": {"name": "radarr_request_movie", "arguments": {"tmdb_id": 101, "french": False}}}
@@ -209,7 +219,7 @@ class AgentRoutingTests(unittest.TestCase):
 
         agent.run_agent("trouve un film d'action 2000-2005 et ajoute-le")
         request_movie.assert_called_once_with(101, french=False)
-        self.assertEqual(post.call_count, 3)
+        self.assertEqual(post.call_count, 5)
 
     @patch("agent.radarr.request_movie", return_value={"added": True, "title": "Alpha"})
     def test_action_routing_uses_exact_grounded_identifier(self, request_movie):
