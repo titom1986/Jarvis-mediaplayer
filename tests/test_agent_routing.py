@@ -235,7 +235,9 @@ class AgentRoutingTests(unittest.TestCase):
     @patch("agent.catalog_sets.execute_constraint_group")
     @patch("agent.requests.post")
     def test_mixed_turn_keeps_constraint_declarative_until_execute(self, post, execute_group, results):
-        execute_group.return_value = agent.catalog_sets._store({101}, "movie", "seed")
+        # run_agent() resets request-local catalogue state, so create the handle
+        # only when execution actually happens inside the request.
+        execute_group.side_effect = lambda members, source=None: agent.catalog_sets._store({101}, "movie", "seed")
         results.return_value = {"set": "s1", "count": 1, "results": [{"mediaType": "movie", "id": 101, "title": "Alpha"}]}
 
         class Response:
