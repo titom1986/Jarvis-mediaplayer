@@ -230,6 +230,34 @@ class AgentRoutingTests(unittest.TestCase):
         self.assertTrue(result["added"])
         request_movie.assert_called_once_with(101, french=False)
 
+
+    @patch("agent.catalog_sets.results")
+    @patch("agent.catalog_sets.execute_constraint_group")
+    @patch("agent.requests.post")
+    def test_mixed_turn_keeps_constraint_declarative_until_execute(self, post, execute_group, results):
+        execute_group.return_value = agent.catalog_sets._store({101}, "movie", "seed")
+        results.return_value = {"set": "s1", "count": 1, "results": [{"mediaType": "movie", "id": 101, "title": "Alpha"}]}
+
+        class Response:
+            def __init__(self, payload): self.payload = payload
+            def raise_for_status(self): pass
+            def json(self): return self.payload
+
+        post.side_effect = [
+            Response({"message": {"role": "assistant", "content": "", "tool_calls": [
+                {"function": {"name": "catalog_years", "arguments": {"year_from": 2000, "year_to": 2005, "media_type": "movie"}}},
+                {"function": {"name": "catalog_keyword_vocabulary", "arguments": {"query": "virtual reality"}}},
+            ]}}),
+            Response({"message": {"role": "assistant", "content": "", "tool_calls": [
+                {"function": {"name": "catalog_execute", "arguments": {}}},
+            ]}}),
+            Response({"message": {"role": "assistant", "content": "Alpha."}}),
+        ]
+        with patch("agent.catalog_sets.keyword_vocabulary", return_value={"keywords": [{"id": 4563, "name": "virtual reality"}]}):
+            agent.run_agent("film 2000-2005 sur la réalité virtuelle")
+        execute_group.assert_called_once()
+        results.assert_called_once()
+
     def test_unknown_tool_is_nonfatal(self):
         self.assertIn("error", agent.execute_tool("does_not_exist", {}))
 
