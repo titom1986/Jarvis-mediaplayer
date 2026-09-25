@@ -135,6 +135,32 @@ def _render_catalogue_results(grounded):
     return "\n\n".join(blocks)
 
 
+def _download_state(item):
+    """Deterministically interpret Arr queue fields without hiding import state."""
+    status = (item.get("status") or "").casefold()
+    tracked_status = (item.get("trackedDownloadStatus") or "").casefold()
+    tracked_state = (item.get("trackedDownloadState") or "").casefold()
+
+    if tracked_status and tracked_status not in {"ok", "none"}:
+        return f"{item.get('trackedDownloadStatus')}"
+    if status == "completed":
+        if tracked_state:
+            return f"téléchargement terminé — traitement Sonarr/Radarr : {item.get('trackedDownloadState')}"
+        return "téléchargement terminé — encore présent dans la queue"
+    if status:
+        return item.get("status")
+    if tracked_state:
+        return item.get("trackedDownloadState")
+    return "en cours"
+
+
+def _progress(item):
+    size, left = item.get("size"), item.get("sizeleft")
+    if isinstance(size, (int, float)) and size > 0 and isinstance(left, (int, float)):
+        return max(0, min(100, round((size - left) * 100 / size)))
+    return None
+
+
 def _render_terminal_tool(name, result):
     if result.get("error"):
         return result["error"]
@@ -151,8 +177,11 @@ def _render_terminal_tool(name, result):
             return f"{title} est introuvable dans Radarr."
         if not result.get("inQueue"):
             return f"{title} — aucun téléchargement en cours."
-        status = result.get("status") or result.get("trackedDownloadState") or "en cours"
-        parts = [f"{title} — {status}"]
+        state = _download_state(result)
+        progress = _progress(result)
+        parts = [f"{title} — {state}"]
+        if progress is not None and (result.get("status") or "").casefold() != "completed":
+            parts.append(f"{progress} %")
         if result.get("timeleft"):
             parts.append(f'restant : {result["timeleft"]}')
         return " — ".join(parts) + "."
@@ -171,18 +200,17 @@ def _render_terminal_tool(name, result):
             return f"{title} est introuvable dans Sonarr."
         if not result.get("inQueue"):
             return f"{title} — aucun téléchargement en cours."
-        lines = []
-        for item in result.get("items", []):
-            label = item.get("title") or "Épisode"
-            status = item.get("status") or item.get("trackedDownloadState") or "en cours"
-            size = item.get("size")
-            left = item.get("sizeleft")
-            progress = None
-            if isinstance(size, (int, float)) and size > 0 and isinstance(left, (int, float)):
-                progress = max(0, min(100, round((size - left) * 100 / size)))
-            suffix = f" — {progress} %" if progress is not None else ""
-            lines.append(f"{label} — {status}{suffix}")
-        return "\n".join(lines)
+        items = result.get("items", [])
+        states = {}
+        for item in items:
+            state = _download_state(item)
+            states[state] = states.get(state, 0) + 1
+        parts = [f"{count} {state}" for state, count in states.items()]
+        active = [p for p in (_progress(item) for item in items)
+                  if p is not None and (item.get("status") or "").casefold() != "completed"]
+        if active:
+            parts.append(f"progression moyenne : {round(sum(active) / len(active))} %")
+        return f"{title} — " + " ; ".join(parts) + "."
     if name == "sonarr_status":
         title = result.get("title", "Série")
         if not result.get("found"):
