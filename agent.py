@@ -13,6 +13,7 @@ TOOLS = [
     radarr.TOOL,
     radarr.QUEUE_TOOL,
     radarr.REQUEST_TOOL,
+    radarr.REQUEST_MOVIES_TOOL,
     sonarr.TOOL,
     sonarr.QUEUE_TOOL,
     sonarr.REQUEST_TOOL,
@@ -67,6 +68,30 @@ def _ollama_perf(payload, wall_s):
         "prompt_tokens": payload.get("prompt_eval_count"),
         "output_tokens": payload.get("eval_count"),
     }
+
+
+PENDING_CONFIRMATION = None
+
+
+def _is_confirmation(text):
+    return (text or "").strip().casefold() in {
+        "oui", "yes", "ok", "okay", "confirme", "je confirme", "vas-y", "vas y", "go"
+    }
+
+
+def _execute_pending_confirmation():
+    global PENDING_CONFIRMATION
+    plan = PENDING_CONFIRMATION
+    PENDING_CONFIRMATION = None
+    if not plan:
+        return None
+    results = []
+    for movie in plan["movies"]:
+        result = radarr.request_movie(movie["tmdb_id"], french=plan["french"])
+        results.append({"title": movie["title"], **result})
+        if result.get("error"):
+            break
+    return results
 
 
 CATALOG_CONSTRAINT_TOOLS = {
@@ -243,6 +268,25 @@ def _model_config():
 
 
 def run_agent(question):
+    global PENDING_CONFIRMATION
+    if PENDING_CONFIRMATION is not None:
+        if _is_confirmation(question):
+            results = _execute_pending_confirmation()
+            lines = []
+            for item in results or []:
+                if item.get("error"):
+                    lines.append(f'{item.get("title", "Film")} — {item["error"]}')
+                elif item.get("alreadyExists"):
+                    lines.append(f'{item.get("title", "Film")} — déjà présent dans Radarr.')
+                elif item.get("added"):
+                    lines.append(f'{item.get("title", "Film")} — mis en téléchargement.')
+            final = "\n".join(lines) or "Aucune action exécutée."
+            print("\n═══ RÉPONSE ═══\n")
+            print(final)
+            return final
+        # Any non-confirmation cancels the stale plan before handling the new request.
+        PENDING_CONFIRMATION = None
+
     total_started = time.perf_counter()
     catalog_sets.reset()
     pending_catalog_batch = []
@@ -377,14 +421,41 @@ def run_agent(question):
                         pending_catalog_batch = []
                 elif pending_catalog_batch and name in {
                     "plex_status", "radarr_status", "radarr_queue_status",
-                    "radarr_request_movie", "sonarr_status", "sonarr_queue_status", "sonarr_request_series"
+                    "radarr_request_movie", "radarr_request_movies", "sonarr_status", "sonarr_queue_status", "sonarr_request_series"
                 }:
                     result = {
                         "error": "catalogue constraints are still pending",
                         "required_action": "Call catalog_execute before status or media actions.",
                     }
                 else:
-                    if name == "sonarr_request_series":
+                    if name == "radarr_request_movies":
+                        movies = args.get("movies") or []
+                        grounded_movies = {
+                            item.get("id"): item for item in (grounded_catalogue_results or {}).get("results", [])
+                            if item.get("mediaType") == "movie"
+                        }
+                        ids = [item.get("tmdb_id") for item in movies]
+                        if len(movies) < 2 or len(set(ids)) != len(ids) or any(mid not in grounded_movies for mid in ids):
+                            result = {"error": "Plan multi-films invalide ou non entièrement groundé."}
+                        else:
+                            # Titles are replaced with grounded catalogue titles; the model cannot
+                            # smuggle arbitrary display/action targets into the confirmation.
+                            plan_movies = [
+                                {"tmdb_id": mid, "title": grounded_movies[mid].get("title") or str(mid)}
+                                for mid in ids
+                            ]
+                            PENDING_CONFIRMATION = {
+                                "movies": plan_movies,
+                                "french": bool(args.get("french", False)),
+                            }
+                            language = " en français" if PENDING_CONFIRMATION["french"] else ""
+                            result = {"confirmationRequired": True, "count": len(plan_movies)}
+                            terminal_content = (
+                                f'Je vais télécharger{language} : ' +
+                                ", ".join(item["title"] for item in plan_movies) +
+                                ". Tu confirmes ?"
+                            )
+                    elif name == "sonarr_request_series":
                         tv_items = [
                             item for item in (grounded_catalogue_results or {}).get("results", [])
                             if item.get("mediaType") == "tv"
@@ -432,7 +503,7 @@ def run_agent(question):
                             result = {"error": str(exc)}
                     if name in {
                         "plex_status", "radarr_status", "radarr_queue_status",
-                        "radarr_request_movie", "sonarr_status", "sonarr_queue_status", "sonarr_request_series"
+                        "radarr_request_movie", "radarr_request_movies", "sonarr_status", "sonarr_queue_status", "sonarr_request_series"
                     }:
                         terminal_content = _render_terminal_tool(name, result)
                     if name == "catalog_keyword_vocabulary" and not result.get("error"):
