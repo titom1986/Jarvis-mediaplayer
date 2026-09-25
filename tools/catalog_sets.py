@@ -456,7 +456,7 @@ def _tool(name, description, properties, required):
 
 PERSON_TOOL = _tool(
     "catalog_person",
-    "Declare one person constraint for a movie or TV search. Multiple constraint calls may be emitted together; Python composes them deterministically.",
+    "Declare one person constraint for a movie or TV search. This is declarative only: Python records it without scanning the catalogue. Declare every constraint from the user request, then call catalog_execute once.",
     {
         "name": {"type": "string"},
         "media_type": {"type": "string", "enum": ["movie", "tv"]},
@@ -468,7 +468,7 @@ PERSON_TOOL = _tool(
 
 GENRE_TOOL = _tool(
     "catalog_genre",
-    "Declare one movie or TV genre constraint. Use the canonical catalogue genre name, normally English (for example Science Fiction). Multiple constraint calls may be emitted together; Python composes them deterministically.",
+    "Declare one movie or TV genre constraint. Use the canonical catalogue genre name, normally English (for example Science Fiction). This is declarative only: Python records it without scanning the catalogue. Declare every constraint from the user request, then call catalog_execute once.",
     {
         "name": {"type": "string"},
         "media_type": {"type": "string", "enum": ["movie", "tv"]},
@@ -491,7 +491,7 @@ KEYWORD_VOCABULARY_TOOL = _tool(
 
 KEYWORD_TOOL = _tool(
     "catalog_keyword",
-    "Declare one movie or TV theme/concept constraint using real catalogue keyword labels. If the catalogue wording for a semantic concept is uncertain, call catalog_keyword_vocabulary first and then use the semantically appropriate returned label(s). aliases are OR-equivalent labels for the same requested concept. Multiple constraint calls may be emitted together; Python composes them deterministically.",
+    "Declare one movie or TV theme/concept constraint using real catalogue keyword labels. If the catalogue wording for a semantic concept is uncertain, call catalog_keyword_vocabulary first and then use the semantically appropriate returned label(s). aliases are OR-equivalent labels for the same requested concept. This is declarative only: Python records it without scanning the catalogue. Declare every constraint from the user request, then call catalog_execute once.",
     {
         "name": {"type": "string"},
         "aliases": {"type": "array", "items": {"type": "string"}, "maxItems": 5, "description": "Optional English catalogue keyword labels that express the same requested concept. They are OR alternatives, never additional constraints. Use them when a concept can be represented by several catalogue labels."},
@@ -505,7 +505,7 @@ KEYWORD_TOOL = _tool(
 
 YEARS_TOOL = _tool(
     "catalog_years",
-    "Declare one inclusive release-year constraint. Multiple constraint calls may be emitted together; Python composes them deterministically.",
+    "Declare one inclusive release-year constraint. This is declarative only: Python records it without scanning the catalogue. Declare every constraint from the user request, then call catalog_execute once.",
     {
         "year_from": {"type": "integer"},
         "year_to": {"type": "integer"},
@@ -537,6 +537,13 @@ SUBTRACT_TOOL = _tool(
     ["source", "remove"],
 )
 
+EXECUTE_TOOL = _tool(
+    "catalog_execute",
+    "Execute all catalogue constraints declared for the current user request. Call exactly once after every include/exclude constraint has been declared and any uncertain keyword has been grounded. Python chooses the cheapest subset and performs all set algebra; do not combine or subtract catalogue sets yourself.",
+    {},
+    [],
+)
+
 RESULTS_TOOL = _tool(
     "catalog_results",
     "Return the best-rated media in a candidate set. Call after set operations are complete.",
@@ -549,5 +556,5 @@ RESULTS_TOOL = _tool(
 
 TOOLS = [
     PERSON_TOOL, GENRE_TOOL, KEYWORD_VOCABULARY_TOOL, KEYWORD_TOOL, YEARS_TOOL,
-    COMBINE_TOOL, SUBTRACT_TOOL, RESULTS_TOOL,
+    EXECUTE_TOOL,
 ]
