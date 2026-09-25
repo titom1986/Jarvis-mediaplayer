@@ -170,16 +170,21 @@ def run_agent(question):
             break
 
         messages.append(message)
-        batch_is_constraints = all(
-            call["function"]["name"] in CATALOG_CONSTRAINT_TOOLS for call in calls
-        )
+        constraint_calls = [
+            call for call in calls
+            if call["function"]["name"] in CATALOG_CONSTRAINT_TOOLS
+        ]
+        other_calls = [
+            call for call in calls
+            if call["function"]["name"] not in CATALOG_CONSTRAINT_TOOLS
+        ]
         pending_tool_messages = []
 
-        if batch_is_constraints:
+        if constraint_calls:
             # Constraint calls are declarations, never execution. This makes the
             # planner independent of whether the model emits one call per turn or
             # several calls in parallel.
-            for call in calls:
+            for call in constraint_calls:
                 name = call["function"]["name"]
                 args = call["function"].get("arguments") or {}
                 print(f"> {name}({args})")
@@ -221,8 +226,8 @@ def run_agent(question):
                     "pending_constraints": len(pending_catalog_batch),
                     "required_action": "Declare any remaining constraints, then call catalog_execute once.",
                 }))
-        else:
-            for call in calls:
+        if other_calls:
+            for call in other_calls:
                 name = call["function"]["name"]
                 args = call["function"].get("arguments") or {}
                 print(f"> {name}({args})")
@@ -246,6 +251,14 @@ def run_agent(question):
                                 "come only from grounded_results."
                             )
                         pending_catalog_batch = []
+                elif pending_catalog_batch and name in {
+                    "plex_status", "radarr_status", "radarr_queue_status",
+                    "radarr_request_movie", "sonarr_status"
+                }:
+                    result = {
+                        "error": "catalogue constraints are still pending",
+                        "required_action": "Call catalog_execute before status or media actions.",
+                    }
                 else:
                     try:
                         result = execute_tool(name, args)
