@@ -15,6 +15,7 @@ TOOLS = [
     radarr.REQUEST_TOOL,
     sonarr.TOOL,
     sonarr.QUEUE_TOOL,
+    sonarr.REQUEST_TOOL,
 ]
 
 
@@ -48,6 +49,12 @@ def execute_tool(name, args):
         return sonarr.status(args["title"])
     if name == "sonarr_queue_status":
         return sonarr.queue_status(args["title"])
+    if name == "sonarr_request_series":
+        return sonarr.request_series(
+            args["tvdb_id"], scope=args.get("scope", "series"),
+            season=args.get("season"), episode=args.get("episode"),
+            french=args.get("french", False), force=args.get("force", False)
+        )
     return {"error": f"Outil inconnu : {name}"}
 
 
@@ -370,14 +377,25 @@ def run_agent(question):
                         pending_catalog_batch = []
                 elif pending_catalog_batch and name in {
                     "plex_status", "radarr_status", "radarr_queue_status",
-                    "radarr_request_movie", "sonarr_status", "sonarr_queue_status"
+                    "radarr_request_movie", "sonarr_status", "sonarr_queue_status", "sonarr_request_series"
                 }:
                     result = {
                         "error": "catalogue constraints are still pending",
                         "required_action": "Call catalog_execute before status or media actions.",
                     }
                 else:
-                    if name == "radarr_request_movie":
+                    if name == "sonarr_request_series":
+                        allowed_ids = {
+                            item.get("id") for item in (grounded_catalogue_results or {}).get("results", [])
+                            if item.get("mediaType") == "tv"
+                        }
+                        # Seerr catalogue IDs are TMDB IDs, not TVDB IDs. The write
+                        # path must never pretend they are interchangeable.
+                        result = {
+                            "error": "La série est groundée par TMDB mais Sonarr exige un TVDB ID vérifié.",
+                            "required_action": "Resolve the grounded TV result to a verified TVDB ID before the Sonarr write."
+                        }
+                    elif name == "radarr_request_movie":
                         allowed_ids = {
                             item.get("id") for item in (grounded_catalogue_results or {}).get("results", [])
                             if item.get("mediaType") == "movie"
@@ -399,7 +417,7 @@ def run_agent(question):
                             result = {"error": str(exc)}
                     if name in {
                         "plex_status", "radarr_status", "radarr_queue_status",
-                        "radarr_request_movie", "sonarr_status", "sonarr_queue_status"
+                        "radarr_request_movie", "sonarr_status", "sonarr_queue_status", "sonarr_request_series"
                     }:
                         terminal_content = _render_terminal_tool(name, result)
                     if name == "catalog_keyword_vocabulary" and not result.get("error"):
