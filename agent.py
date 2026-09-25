@@ -114,6 +114,67 @@ def _compose_catalog_batch(entries):
     print("[PLAN] final_after_exclusions", json.dumps(final, ensure_ascii=False, sort_keys=True))
     return final
 
+def _render_catalogue_results(grounded):
+    results = grounded.get("results", [])
+    if not results:
+        return "Aucun résultat."
+    blocks = []
+    for item in results:
+        title = item.get("title") or "Titre inconnu"
+        date = item.get("releaseDate") or ""
+        year = date[:4] if date else ""
+        rating = item.get("rating")
+        heading = f"{title} ({year})" if year else title
+        if rating is not None:
+            heading += f" — {rating}/10"
+        overview = (item.get("overview") or "").strip()
+        blocks.append(heading + (f"\n{overview}" if overview else ""))
+    return "\n\n".join(blocks)
+
+
+def _render_terminal_tool(name, result):
+    if result.get("error"):
+        return result["error"]
+    if name == "radarr_request_movie":
+        if result.get("alreadyExists"):
+            return f'{result.get("title", "Film")} est déjà présent dans Radarr.'
+        if result.get("added"):
+            quality = result.get("qualityProfile")
+            suffix = f" — {quality}" if quality else ""
+            return f'{result.get("title", "Film")} mis en téléchargement{suffix}.'
+    if name == "radarr_queue_status":
+        title = result.get("title", "Film")
+        if not result.get("found"):
+            return f"{title} est introuvable dans Radarr."
+        if not result.get("inQueue"):
+            return f"{title} — aucun téléchargement en cours."
+        status = result.get("status") or result.get("trackedDownloadState") or "en cours"
+        parts = [f"{title} — {status}"]
+        if result.get("timeleft"):
+            parts.append(f'restant : {result["timeleft"]}')
+        return " — ".join(parts) + "."
+    if name == "radarr_status":
+        title = result.get("title", "Film")
+        if not result.get("found"):
+            return f"{title} est introuvable dans Radarr."
+        if result.get("inQueue"):
+            return f"{title} — téléchargement en cours."
+        if result.get("hasFile"):
+            return f"{title} — disponible."
+        return f"{title} — présent dans Radarr, sans fichier."
+    if name == "sonarr_status":
+        title = result.get("title", "Série")
+        if not result.get("found"):
+            return f"{title} est introuvable dans Sonarr."
+        return f'{title} — {result.get("episodeFileCount", 0)}/{result.get("episodeCount", 0)} épisodes disponibles.'
+    if name == "plex_status":
+        title = result.get("title", "Média")
+        if not result.get("found"):
+            return f"{title} est introuvable dans Plex."
+        return f"{title} — disponible dans Plex."
+    return None
+
+
 def _model_config():
     # Preserve every model's native Ollama tool template. Semantic operating
     # instructions live in the common tool schemas, not in model-specific prompts.
@@ -127,6 +188,7 @@ def run_agent(question):
     pending_catalog_batch = []
     grounded_keyword_labels = set()
     grounded_catalogue_results = None
+    terminal_content = None
 
     system, model_payload = _model_config()
     messages = []
@@ -250,6 +312,7 @@ def run_agent(question):
                                 "as search results. Titles, dates, ratings, and descriptions must "
                                 "come only from grounded_results."
                             )
+                            terminal_content = _render_catalogue_results(grounded_catalogue_results)
                         pending_catalog_batch = []
                 elif pending_catalog_batch and name in {
                     "plex_status", "radarr_status", "radarr_queue_status",
@@ -264,6 +327,11 @@ def run_agent(question):
                         result = execute_tool(name, args)
                     except Exception as exc:
                         result = {"error": str(exc)}
+                    if name in {
+                        "plex_status", "radarr_status", "radarr_queue_status",
+                        "radarr_request_movie", "sonarr_status"
+                    }:
+                        terminal_content = _render_terminal_tool(name, result)
                     if name == "catalog_keyword_vocabulary" and not result.get("error"):
                         grounded_keyword_labels.update(
                             catalog_sets.media_search._norm(item["name"])
@@ -277,6 +345,10 @@ def run_agent(question):
                 )
                 tool_calls += 1
                 pending_tool_messages.append((name, result))
+
+        if terminal_content is not None:
+            final_content = terminal_content
+            break
 
         for name, result in pending_tool_messages:
             messages.append({
