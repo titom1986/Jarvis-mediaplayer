@@ -239,7 +239,9 @@ def run_agent(question):
                 composed["results_loaded"] = True
                 composed["response_contract"] = (
                     "These grounded_results are the only catalogue media you may name "
-                    "as search results. Do not add, substitute, or infer titles from model memory."
+                    "as search results. Titles, dates, ratings, and descriptions must come only "
+                    "from grounded_results; do not add, substitute, or infer factual media details "
+                    "from model memory."
                 )
             print("< composed", json.dumps(composed, ensure_ascii=False))
             print("[PERF] catalog_batch", json.dumps(
@@ -310,6 +312,6 @@ if __name__ == "__main__":
                     break
                 if question:
                     run_agent(question)
-            except KeyboardInterrupt:
+            except (KeyboardInterrupt, EOFError):
                 print()
                 break
