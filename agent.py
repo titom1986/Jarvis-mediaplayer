@@ -14,6 +14,7 @@ TOOLS = [
     radarr.QUEUE_TOOL,
     radarr.REQUEST_TOOL,
     sonarr.TOOL,
+    sonarr.QUEUE_TOOL,
 ]
 
 
@@ -45,6 +46,8 @@ def execute_tool(name, args):
         return radarr.request_movie(args["tmdb_id"], french=args.get("french", False))
     if name == "sonarr_status":
         return sonarr.status(args["title"])
+    if name == "sonarr_queue_status":
+        return sonarr.queue_status(args["title"])
     return {"error": f"Outil inconnu : {name}"}
 
 
@@ -162,6 +165,24 @@ def _render_terminal_tool(name, result):
         if result.get("hasFile"):
             return f"{title} — disponible."
         return f"{title} — présent dans Radarr, sans fichier."
+    if name == "sonarr_queue_status":
+        title = result.get("title", "Série")
+        if not result.get("found"):
+            return f"{title} est introuvable dans Sonarr."
+        if not result.get("inQueue"):
+            return f"{title} — aucun téléchargement en cours."
+        lines = []
+        for item in result.get("items", []):
+            label = item.get("title") or "Épisode"
+            status = item.get("status") or item.get("trackedDownloadState") or "en cours"
+            size = item.get("size")
+            left = item.get("sizeleft")
+            progress = None
+            if isinstance(size, (int, float)) and size > 0 and isinstance(left, (int, float)):
+                progress = max(0, min(100, round((size - left) * 100 / size)))
+            suffix = f" — {progress} %" if progress is not None else ""
+            lines.append(f"{label} — {status}{suffix}")
+        return "\n".join(lines)
     if name == "sonarr_status":
         title = result.get("title", "Série")
         if not result.get("found"):
@@ -317,7 +338,7 @@ def run_agent(question):
                         pending_catalog_batch = []
                 elif pending_catalog_batch and name in {
                     "plex_status", "radarr_status", "radarr_queue_status",
-                    "radarr_request_movie", "sonarr_status"
+                    "radarr_request_movie", "sonarr_status", "sonarr_queue_status"
                 }:
                     result = {
                         "error": "catalogue constraints are still pending",
@@ -346,7 +367,7 @@ def run_agent(question):
                             result = {"error": str(exc)}
                     if name in {
                         "plex_status", "radarr_status", "radarr_queue_status",
-                        "radarr_request_movie", "sonarr_status"
+                        "radarr_request_movie", "sonarr_status", "sonarr_queue_status"
                     }:
                         terminal_content = _render_terminal_tool(name, result)
                     if name == "catalog_keyword_vocabulary" and not result.get("error"):
