@@ -312,7 +312,8 @@ def run_agent(question):
                                 "as search results. Titles, dates, ratings, and descriptions must "
                                 "come only from grounded_results."
                             )
-                            terminal_content = _render_catalogue_results(grounded_catalogue_results)
+                            if not args.get("continue_for_action", False):
+                                terminal_content = _render_catalogue_results(grounded_catalogue_results)
                         pending_catalog_batch = []
                 elif pending_catalog_batch and name in {
                     "plex_status", "radarr_status", "radarr_queue_status",
@@ -323,10 +324,26 @@ def run_agent(question):
                         "required_action": "Call catalog_execute before status or media actions.",
                     }
                 else:
-                    try:
-                        result = execute_tool(name, args)
-                    except Exception as exc:
-                        result = {"error": str(exc)}
+                    if name == "radarr_request_movie":
+                        allowed_ids = {
+                            item.get("id") for item in (grounded_catalogue_results or {}).get("results", [])
+                            if item.get("mediaType") == "movie"
+                        }
+                        if args.get("tmdb_id") not in allowed_ids:
+                            result = {
+                                "error": "Film non vérifié dans les résultats catalogue de cette requête.",
+                                "required_action": "Ground the requested movie with catalogue tools before requesting it."
+                            }
+                        else:
+                            try:
+                                result = execute_tool(name, args)
+                            except Exception as exc:
+                                result = {"error": str(exc)}
+                    else:
+                        try:
+                            result = execute_tool(name, args)
+                        except Exception as exc:
+                            result = {"error": str(exc)}
                     if name in {
                         "plex_status", "radarr_status", "radarr_queue_status",
                         "radarr_request_movie", "sonarr_status"
