@@ -82,11 +82,19 @@ def queue_status(title):
         }
 
         wanted = _title_key(title)
+        queued_series_ids = {item.get("seriesId") for item in records}
         series = next(
-            (item for item in series_by_id.values()
-             if _title_key(item.get("title")) == wanted),
+            (series_by_id[series_id] for series_id in queued_series_ids
+             if series_id in series_by_id
+             and _title_key(series_by_id[series_id].get("title")) == wanted),
             None,
         )
+        if series is None:
+            series = next(
+                (item for item in series_by_id.values()
+                 if _title_key(item.get("title")) == wanted),
+                None,
+            )
         if series is None:
             return {"found": False, "title": title, "inQueue": False}
 
