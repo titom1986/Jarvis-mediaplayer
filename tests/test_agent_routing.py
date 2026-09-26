@@ -290,6 +290,54 @@ class AgentRoutingTests(unittest.TestCase):
         self.assertIn("1 downloading", text)
         self.assertIn("progression moyenne : 75 %", text)
 
+    @patch("agent.plex.status", return_value={"found": False})
+    @patch("agent.catalog_sets.results")
+    @patch("agent.catalog_sets.execute_constraint_group")
+    @patch("agent.requests.post")
+    def test_two_grounded_movies_stop_on_confirmation_without_extra_llm(
+        self, post, execute_group, results, plex_status
+    ):
+        execute_group.side_effect = lambda members, source=None: agent.catalog_sets._store({101, 102}, "movie", "seed")
+        results.return_value = {
+            "set": "s1", "count": 2,
+            "results": [
+                {"mediaType": "movie", "id": 101, "title": "Alpha"},
+                {"mediaType": "movie", "id": 102, "title": "Beta"},
+            ],
+        }
+
+        class Response:
+            def __init__(self, payload): self.payload = payload
+            def raise_for_status(self): pass
+            def json(self): return self.payload
+
+        post.side_effect = [
+            Response({"message": {"role": "assistant", "content": "", "tool_calls": [
+                {"function": {"name": "catalog_genre", "arguments": {"name": "Romance", "media_type": "movie"}}},
+            ]}}),
+            Response({"message": {"role": "assistant", "content": "", "tool_calls": [
+                {"function": {"name": "catalog_execute", "arguments": {"purpose": "action"}}},
+            ]}}),
+            Response({"message": {"role": "assistant", "content": "", "tool_calls": [
+                {"function": {"name": "radarr_request_movies", "arguments": {
+                    "movies": [
+                        {"tmdb_id": 101, "title": "Alpha"},
+                        {"tmdb_id": 102, "title": "Beta"},
+                    ],
+                    "french": True,
+                    "exclude_existing_plex": True,
+                }}}
+            ]}}),
+        ]
+
+        result = agent.run_agent("Télécharge les romances absentes de Plex en français")
+
+        self.assertEqual(post.call_count, 3)
+        self.assertIn("Alpha", result)
+        self.assertIn("Beta", result)
+        self.assertIn("Tu confirmes ?", result)
+        self.assertEqual([m["tmdb_id"] for m in agent.PENDING_CONFIRMATION["movies"]], [101, 102])
+
     def test_catalog_execute_contract_requires_outcome_purpose(self):
         tool = next(x for x in agent.TOOLS if x["function"]["name"] == "catalog_execute")
         params = tool["function"]["parameters"]
