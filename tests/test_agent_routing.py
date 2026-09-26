@@ -164,7 +164,7 @@ class AgentRoutingTests(unittest.TestCase):
                 {"function": {"name": "catalog_years", "arguments": {"year_from": 2000, "year_to": 2005, "media_type": "movie"}}},
             ]}}),
             Response({"message": {"role": "assistant", "content": "", "tool_calls": [
-                {"function": {"name": "catalog_execute", "arguments": {}}},
+                {"function": {"name": "catalog_execute", "arguments": {"purpose": "results"}}},
             ]}}),
         ]
 
@@ -200,7 +200,7 @@ class AgentRoutingTests(unittest.TestCase):
                 {"function": {"name": "catalog_years", "arguments": {"year_from": 2000, "year_to": 2005, "media_type": "movie"}}},
             ]}}),
             Response({"message": {"role": "assistant", "content": "", "tool_calls": [
-                {"function": {"name": "catalog_execute", "arguments": {"continue_for_action": True}}},
+                {"function": {"name": "catalog_execute", "arguments": {"purpose": "action"}}},
             ]}}),
             Response({"message": {"role": "assistant", "content": "", "tool_calls": [
                 {"function": {"name": "radarr_request_movie", "arguments": {"tmdb_id": 101, "french": False}}}
@@ -289,6 +289,31 @@ class AgentRoutingTests(unittest.TestCase):
         self.assertIn("importPending", text)
         self.assertIn("1 downloading", text)
         self.assertIn("progression moyenne : 75 %", text)
+
+    def test_catalog_execute_contract_requires_outcome_purpose(self):
+        tool = next(x for x in agent.TOOLS if x["function"]["name"] == "catalog_execute")
+        params = tool["function"]["parameters"]
+        self.assertIn("purpose", params["required"])
+        self.assertEqual(params["properties"]["purpose"]["enum"], ["results", "action"])
+
+    @patch("agent.plex.status")
+    @patch("agent.radarr.request_movie")
+    def test_multi_movie_plex_filter_is_applied_before_confirmation(self, request_movie, plex_status):
+        # Representative grounded candidates: one local, two missing. No write
+        # may happen before the human confirms the two-film remainder.
+        grounded = {
+            101: {"mediaType": "movie", "id": 101, "title": "Local"},
+            102: {"mediaType": "movie", "id": 102, "title": "Missing A"},
+            103: {"mediaType": "movie", "id": 103, "title": "Missing B"},
+        }
+        plex_status.side_effect = lambda title: {"found": title == "Local", "title": title}
+        plan = [
+            {"tmdb_id": mid, "title": grounded[mid]["title"]}
+            for mid in [101, 102, 103]
+            if not plex_status(grounded[mid]["title"]).get("found", False)
+        ]
+        self.assertEqual([x["tmdb_id"] for x in plan], [102, 103])
+        request_movie.assert_not_called()
 
     @patch("agent.radarr.request_movie")
     def test_multi_movie_plan_requires_confirmation_before_writes(self, request_movie):
