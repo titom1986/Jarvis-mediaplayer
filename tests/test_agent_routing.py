@@ -9,6 +9,11 @@ import agent
 class AgentRoutingTests(unittest.TestCase):
     def setUp(self):
         agent.catalog_sets.reset()
+        # run_agent tests exercise the agent loop, not the separately-tested
+        # semantic router. Keep their mocked Ollama call sequences isolated.
+        self.router_patcher = patch("agent.semantic_router.route", return_value=None)
+        self.router_patcher.start()
+        self.addCleanup(self.router_patcher.stop)
 
     def test_catalog_refinements_forward_source(self):
         with patch("agent.catalog_sets.genre", return_value={"set": "s2"}) as genre:
