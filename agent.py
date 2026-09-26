@@ -5,6 +5,7 @@ import time
 
 from config import OLLAMA_URL, MODEL
 from tools import radarr, sonarr, plex, catalog_sets
+import semantic_router
 
 
 TOOLS = [
@@ -297,6 +298,16 @@ def run_agent(question):
     terminal_content = None
 
     system, model_payload = _model_config()
+    try:
+        route_family = semantic_router.route(question)
+    except Exception as exc:
+        route_family = None
+        print("[ROUTER] fallback", json.dumps({"error": str(exc)}, ensure_ascii=False))
+    active_tools = semantic_router.tools_for_family(TOOLS, route_family)
+    print("[ROUTER]", json.dumps({
+        "family": route_family or "fallback",
+        "tools": [tool["function"]["name"] for tool in active_tools],
+    }, ensure_ascii=False))
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
@@ -313,7 +324,7 @@ def run_agent(question):
         request_payload = {
             "model": MODEL,
             "messages": messages,
-            "tools": TOOLS,
+            "tools": active_tools,
             "stream": False,
             "keep_alive": "30m",
             "options": {"temperature": 0, "num_predict": 220},
