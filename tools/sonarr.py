@@ -246,7 +246,7 @@ REQUEST_TOOL = {
     "function": {
         "name": "sonarr_request_series",
         "description": (
-            "Ajoute si nécessaire une série TV identifiée par son TMDB ID catalogue puis lance une recherche Sonarr. "
+            "Ajoute si nécessaire une série TV identifiée par son TMDB ID catalogue puis lance une recherche Sonarr. Use only AFTER catalog_title/catalogue discovery has returned the exact grounded TMDB ID; never invent or guess an ID. For a named series, season, or episode add/download/re-download request, resolve the series title with catalog_title first, then call this tool. "
             "scope=series pour toute la série, season pour une saison entière, episode pour un épisode précis. "
             "Une demande explicite d'un épisode lance EpisodeSearch même si cet épisode possède déjà un fichier."
         ),
@@ -269,7 +269,7 @@ QUEUE_TOOL = {
     "type": "function",
     "function": {
         "name": "sonarr_queue_status",
-        "description": "Vérifie les téléchargements actuellement présents dans la queue Sonarr pour une série et retourne leurs états réels.",
+        "description": "QUEUE STATUS ONLY for a TV SERIES: use when the user asks about current download progress/state of a series. Never use for a movie and never use as a preliminary step for an add/download/re-download request.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -286,7 +286,7 @@ TOOL = {
     "function": {
         "name": "sonarr_status",
         "description":
-            "Recherche une série TV dans Sonarr et retourne son état réel.",
+            "STATUS ONLY: check whether a TV series is present in Sonarr and return its state. Use only for an explicit status/presence question. NEVER use this as a preliminary step for an add/download/re-download request; resolve a named target with catalog_title first.",
         "parameters": {
             "type": "object",
             "properties": {
