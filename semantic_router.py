@@ -1,34 +1,50 @@
-"""Semantic request-family router.
+"""Hierarchical semantic media router.
 
-The router classifies meaning, never phrases or media identities.  It intentionally
-has no lexical rules: Qwen sees four broad capabilities and selects one.  Low
-confidence/no tool call falls back to the full agent toolset.
+Qwen is deliberately asked small semantic questions. The first stage identifies
+what kind of reference the user made; only named-media requests need a second
+decision between action and status. No title, verb, or phrase is hard-coded.
 """
 import requests
 
 from config import OLLAMA_URL, MODEL
 
-ROUTE_TOOL = {
+REFERENCE_TOOL = {
     "type": "function",
     "function": {
-        "name": "route_media_request",
+        "name": "route_media_reference",
         "description": (
-            "Classify the user's media request by semantic goal. "
-            "named_action: act on a specific movie/series/title the user names, including a season/episode of it. "
-            "discovery: find/select media from descriptive constraints such as actor, genre, theme, era, or other criteria, "
-            "including when the selected result will later be downloaded. "
-            "status: ask whether named media exists/is available in Plex, Radarr or Sonarr. "
-            "download_status: ask about progress/state of an already requested download."
+            "Classify what the user's request is ABOUT. "
+            "named_media: one specific movie, series, season or episode is identified by title/name. "
+            "discovery: media must be found or selected from descriptive criteria such as person, genre, theme, era or properties. "
+            "transfer: the request asks about progress/state/completion of a download already in progress or previously requested."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "family": {
-                    "type": "string",
-                    "enum": ["named_action", "discovery", "status", "download_status"],
-                }
+                "kind": {"type": "string", "enum": ["named_media", "discovery", "transfer"]}
             },
-            "required": ["family"],
+            "required": ["kind"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+NAMED_INTENT_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "route_named_media_intent",
+        "description": (
+            "The request is already known to concern specific named media. "
+            "Classify only the user's intended operation. "
+            "action: the user wants the named media obtained, added, requested, downloaded, re-downloaded, or an episode/season fetched. "
+            "status: the user only asks whether the named media is present, available, known, or already in the library/service."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "intent": {"type": "string", "enum": ["action", "status"]}
+            },
+            "required": ["intent"],
             "additionalProperties": False,
         },
     },
@@ -52,12 +68,11 @@ FAMILY_TOOL_NAMES = {
 }
 
 
-def route(question):
-    """Return a semantic family, or None so the caller can safely fall back."""
+def _classify(question, tool, argument, allowed):
     payload = {
         "model": MODEL,
         "messages": [{"role": "user", "content": question}],
-        "tools": [ROUTE_TOOL],
+        "tools": [tool],
         "stream": False,
         "keep_alive": "30m",
         "options": {"temperature": 0, "num_predict": 48},
@@ -71,10 +86,33 @@ def route(question):
     if len(calls) != 1:
         return None
     fn = calls[0].get("function") or {}
-    if fn.get("name") != "route_media_request":
+    if fn.get("name") != tool["function"]["name"]:
         return None
-    family = (fn.get("arguments") or {}).get("family")
-    return family if family in FAMILY_TOOL_NAMES else None
+    value = (fn.get("arguments") or {}).get(argument)
+    return value if value in allowed else None
+
+
+def route(question):
+    """Return the final agent family, or None for safe full-tool fallback."""
+    kind = _classify(
+        question, REFERENCE_TOOL, "kind",
+        {"named_media", "discovery", "transfer"},
+    )
+    if kind == "discovery":
+        return "discovery"
+    if kind == "transfer":
+        return "download_status"
+    if kind != "named_media":
+        return None
+
+    intent = _classify(
+        question, NAMED_INTENT_TOOL, "intent", {"action", "status"}
+    )
+    if intent == "action":
+        return "named_action"
+    if intent == "status":
+        return "status"
+    return None
 
 
 def tools_for_family(all_tools, family):
