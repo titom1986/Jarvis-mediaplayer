@@ -325,7 +325,11 @@ REQUEST_MOVIES_TOOL = {
                         "additionalProperties": False
                     }
                 },
-                "french": {"type": "boolean", "default": False}
+                "french": {"type": "boolean", "default": False},
+                "exclude_existing_plex": {
+                    "type": "boolean", "default": False,
+                    "description": "True when the user explicitly wants only films not already available in Plex."
+                }
             },
             "required": ["movies"],
             "additionalProperties": False
