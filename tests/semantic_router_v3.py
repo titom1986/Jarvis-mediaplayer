@@ -8,7 +8,13 @@ import argparse
 import json
 import os
 import statistics
+import sys
 import time
+from pathlib import Path
+
+# When executed as "python3 tests/semantic_router_v3.py", Python puts tests/
+# rather than the repository root on sys.path.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
