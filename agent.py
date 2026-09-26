@@ -528,7 +528,7 @@ def run_agent(question):
                     if name in {
                         "plex_status", "radarr_status", "radarr_queue_status",
                         "radarr_request_movie", "radarr_request_movies", "sonarr_status", "sonarr_queue_status", "sonarr_request_series"
-                    }:
+                    } and terminal_content is None:
                         terminal_content = _render_terminal_tool(name, result)
                     if name == "catalog_keyword_vocabulary" and not result.get("error"):
                         grounded_keyword_labels.update(
