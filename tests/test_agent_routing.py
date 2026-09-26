@@ -411,9 +411,20 @@ class AgentRoutingTests(unittest.TestCase):
     def test_named_title_tool_is_available_and_explicitly_opaque(self):
         tool = next(x for x in agent.TOOLS if x["function"]["name"] == "catalog_title")
         description = tool["function"]["description"]
-        self.assertIn("explicitly identified", description)
+        self.assertIn("SPECIFIC movie or TV series", description)
+        self.assertIn("MUST be the first step", description)
         self.assertIn("NEVER reinterpret words inside a named title", description)
+        self.assertIn("indefinite description", description)
         self.assertEqual(tool["function"]["parameters"]["required"], ["query", "media_type"])
+
+    def test_status_and_write_tools_expose_distinct_semantic_contracts(self):
+        by_name = {x["function"]["name"]: x["function"]["description"] for x in agent.TOOLS}
+        self.assertIn("STATUS ONLY", by_name["radarr_status"])
+        self.assertIn("STATUS ONLY", by_name["sonarr_status"])
+        self.assertIn("QUEUE STATUS ONLY", by_name["radarr_queue_status"])
+        self.assertIn("QUEUE STATUS ONLY", by_name["sonarr_queue_status"])
+        self.assertIn("AFTER catalog_title", by_name["radarr_request_movie"])
+        self.assertIn("AFTER catalog_title", by_name["sonarr_request_series"])
 
     @patch("agent.catalog_sets.title")
     def test_named_title_routes_without_catalogue_constraints(self, title):
