@@ -539,14 +539,15 @@ SUBTRACT_TOOL = _tool(
 
 EXECUTE_TOOL = _tool(
     "catalog_execute",
-    "Execute all catalogue constraints declared for the current user request. Call exactly once after every include/exclude constraint has been declared and any uncertain keyword has been grounded. Python chooses the cheapest subset and performs all set algebra; do not combine or subtract catalogue sets yourself. Set continue_for_action=true only when the user's request still requires an action on one of the returned media (for example add/download); otherwise omit it so catalogue results are returned directly without another model turn.",
+    "Execute all catalogue constraints declared for the current user request. Call exactly once after every include/exclude constraint has been declared and any uncertain keyword has been grounded. Python chooses the cheapest subset and performs all set algebra; do not combine or subtract catalogue sets yourself. You MUST classify the user's requested outcome: purpose=results when they only want to see/find/list catalogue results; purpose=action when the catalogue results are inputs to any further operation such as checking another service, adding, requesting, downloading, or modifying media.",
     {
-        "continue_for_action": {
-            "type": "boolean",
-            "description": "true only when another tool action must be selected from the grounded results"
+        "purpose": {
+            "type": "string",
+            "enum": ["results", "action"],
+            "description": "Required outcome classification. action means at least one further service/tool operation is needed after catalogue discovery."
         }
     },
-    [],
+    ["purpose"],
 )
 
 RESULTS_TOOL = _tool(
