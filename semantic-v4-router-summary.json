@@ -1,0 +1,43 @@
+{
+  "run_id": "router-v4",
+  "model": "qwen3:4b-instruct",
+  "completed": 50,
+  "total_cases": 50,
+  "passed": 33,
+  "failed": 17,
+  "errors": 0,
+  "accuracy_pct": 66.0,
+  "elapsed_s": 453.7,
+  "mean_wall_s": 9.023,
+  "median_wall_s": 6.623,
+  "p95_wall_s": 16.164,
+  "by_category": {
+    "named_action": {
+      "total": 15,
+      "passed": 9,
+      "failed": 6
+    },
+    "discovery": {
+      "total": 15,
+      "passed": 15,
+      "failed": 0
+    },
+    "status": {
+      "total": 10,
+      "passed": 1,
+      "failed": 9
+    },
+    "download_status": {
+      "total": 10,
+      "passed": 8,
+      "failed": 2
+    }
+  },
+  "actual_family_counts": {
+    "named_action": 9,
+    "<none>": 6,
+    "download_status": 17,
+    "discovery": 17,
+    "status": 1
+  }
+}
