@@ -1,4 +1,6 @@
 import unittest
+import io
+from contextlib import redirect_stdout
 from unittest.mock import patch
 
 import agent
@@ -330,12 +332,15 @@ class AgentRoutingTests(unittest.TestCase):
             ]}}),
         ]
 
-        result = agent.run_agent("Télécharge les romances absentes de Plex en français")
+        output = io.StringIO()
+        with redirect_stdout(output):
+            agent.run_agent("Télécharge les romances absentes de Plex en français")
+        rendered = output.getvalue()
 
         self.assertEqual(post.call_count, 3)
-        self.assertIn("Alpha", result)
-        self.assertIn("Beta", result)
-        self.assertIn("Tu confirmes ?", result)
+        self.assertIn("Alpha", rendered)
+        self.assertIn("Beta", rendered)
+        self.assertIn("Tu confirmes ?", rendered)
         self.assertEqual([m["tmdb_id"] for m in agent.PENDING_CONFIRMATION["movies"]], [101, 102])
 
     def test_catalog_execute_contract_requires_outcome_purpose(self):
