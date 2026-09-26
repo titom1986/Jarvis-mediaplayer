@@ -54,6 +54,23 @@ def _same_type(handles):
     return values, next(iter(types))
 
 
+def title(query, media_type):
+    """Resolve an explicitly named media target without interpreting words inside its title."""
+    result = seerr.search(query)
+    if result.get("error"):
+        return result
+    matches = [
+        item for item in result.get("results", [])
+        if item.get("mediaType") == media_type and item.get("id") is not None
+    ]
+    return {
+        "query": query,
+        "media_type": media_type,
+        "found": bool(matches),
+        "results": matches[:5],
+    }
+
+
 def person(name, media_type):
     resolved = media_search._resolve_person(name)
     if not resolved:
@@ -454,6 +471,16 @@ def _tool(name, description, properties, required):
     }
 
 
+TITLE_TOOL = _tool(
+    "catalog_title",
+    "Resolve a media explicitly identified or named by the user. Use this when the user refers to a specific movie or TV series by title, including when they want to add, download, check, watch, or re-request it. The title is an opaque target: NEVER reinterpret words inside a named title as person, genre, theme, keyword, or year constraints. Use discovery constraints only when the user describes media they have not identified by title.",
+    {
+        "query": {"type": "string", "description": "The media title as named by the user; preserve the title wording rather than decomposing its words."},
+        "media_type": {"type": "string", "enum": ["movie", "tv"]},
+    },
+    ["query", "media_type"],
+)
+
 PERSON_TOOL = _tool(
     "catalog_person",
     "Declare one person constraint for a movie or TV search. This is declarative only: Python records it without scanning the catalogue. Declare every constraint from the user request, then call catalog_execute once.",
@@ -561,6 +588,6 @@ RESULTS_TOOL = _tool(
 )
 
 TOOLS = [
-    PERSON_TOOL, GENRE_TOOL, KEYWORD_VOCABULARY_TOOL, KEYWORD_TOOL, YEARS_TOOL,
+    TITLE_TOOL, PERSON_TOOL, GENRE_TOOL, KEYWORD_VOCABULARY_TOOL, KEYWORD_TOOL, YEARS_TOOL,
     EXECUTE_TOOL,
 ]
