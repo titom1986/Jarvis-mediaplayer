@@ -245,7 +245,7 @@ TOOL = {
     "type": "function",
     "function": {
         "name": "radarr_status",
-        "description": "Recherche un film dans Radarr et retourne son état dans la bibliothèque Radarr.",
+        "description": "STATUS ONLY: check whether a movie is already present in Radarr. Use only when the user asks whether/if a movie is present or for its Radarr state. NEVER use this as a preliminary step for an explicit add/download/re-download request; resolve a named target with catalog_title first.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -261,7 +261,7 @@ QUEUE_TOOL = {
     "type": "function",
     "function": {
         "name": "radarr_queue_status",
-        "description": "Vérifie si un film est actuellement dans la queue de téléchargement de Radarr et retourne l'état du téléchargement.",
+        "description": "QUEUE STATUS ONLY for a MOVIE: use when the user asks about current download progress/state of a movie. Never use for a TV series and never use as a preliminary step for an add/download request.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -279,7 +279,7 @@ REQUEST_TOOL = {
         "name": "radarr_request_movie",
         "description": (
             "Ajoute dans Radarr un film identifié par son identifiant TMDB et lance immédiatement sa recherche. "
-            "À utiliser uniquement si l'utilisateur demande explicitement de télécharger ou d'ajouter le film. "
+            "À utiliser uniquement si l'utilisateur demande explicitement de télécharger ou d'ajouter le film, and only AFTER catalog_title/catalogue discovery has returned the exact grounded TMDB ID; never invent an ID. "
             "Le profil qualité standard est utilisé par défaut ; french=true uniquement si l'utilisateur demande explicitement une version française."
         ),
         "parameters": {
