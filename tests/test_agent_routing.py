@@ -408,6 +408,20 @@ class AgentRoutingTests(unittest.TestCase):
         request_movie.assert_not_called()
         self.assertIsNone(agent.PENDING_CONFIRMATION)
 
+    def test_named_title_tool_is_available_and_explicitly_opaque(self):
+        tool = next(x for x in agent.TOOLS if x["function"]["name"] == "catalog_title")
+        description = tool["function"]["description"]
+        self.assertIn("explicitly identified", description)
+        self.assertIn("NEVER reinterpret words inside a named title", description)
+        self.assertEqual(tool["function"]["parameters"]["required"], ["query", "media_type"])
+
+    @patch("agent.catalog_sets.title")
+    def test_named_title_routes_without_catalogue_constraints(self, title):
+        title.return_value = {"found": True, "results": [{"mediaType": "movie", "id": 123, "title": "Love in Lapland"}]}
+        result = agent.execute_tool("catalog_title", {"query": "Love in Lapland", "media_type": "movie"})
+        title.assert_called_once_with("Love in Lapland", "movie")
+        self.assertEqual(result["results"][0]["id"], 123)
+
     def test_unknown_tool_is_nonfatal(self):
         self.assertIn("error", agent.execute_tool("does_not_exist", {}))
 
