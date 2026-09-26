@@ -416,7 +416,7 @@ def run_agent(question):
                                 "as search results. Titles, dates, ratings, and descriptions must "
                                 "come only from grounded_results."
                             )
-                            if not args.get("continue_for_action", False):
+                            if args.get("purpose") != "action":
                                 terminal_content = _render_catalogue_results(grounded_catalogue_results)
                         pending_catalog_batch = []
                 elif pending_catalog_batch and name in {
@@ -444,6 +444,30 @@ def run_agent(question):
                                 {"tmdb_id": mid, "title": grounded_movies[mid].get("title") or str(mid)}
                                 for mid in ids
                             ]
+                            if args.get("exclude_existing_plex", False):
+                                plan_movies = [
+                                    movie for movie in plan_movies
+                                    if not plex.status(movie["title"]).get("found", False)
+                                ]
+                            if not plan_movies:
+                                result = {"confirmationRequired": False, "count": 0}
+                                terminal_content = "Tous les films correspondants sont déjà disponibles dans Plex."
+                                pending_tool_messages.append((name, result))
+                                print("<", json.dumps(result, ensure_ascii=False))
+                                tool_calls += 1
+                                continue
+                            if len(plan_movies) == 1:
+                                try:
+                                    result = radarr.request_movie(
+                                        plan_movies[0]["tmdb_id"], french=bool(args.get("french", False))
+                                    )
+                                except Exception as exc:
+                                    result = {"error": str(exc)}
+                                terminal_content = _render_terminal_tool("radarr_request_movie", result)
+                                pending_tool_messages.append((name, result))
+                                print("<", json.dumps(result, ensure_ascii=False))
+                                tool_calls += 1
+                                continue
                             PENDING_CONFIRMATION = {
                                 "movies": plan_movies,
                                 "french": bool(args.get("french", False)),
