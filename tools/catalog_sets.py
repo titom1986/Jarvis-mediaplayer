@@ -473,7 +473,7 @@ def _tool(name, description, properties, required):
 
 TITLE_TOOL = _tool(
     "catalog_title",
-    "Resolve a media explicitly identified or named by the user. Use this when the user refers to a specific movie or TV series by title, including when they want to add, download, check, watch, or re-request it. The title is an opaque target: NEVER reinterpret words inside a named title as person, genre, theme, keyword, or year constraints. Use discovery constraints only when the user describes media they have not identified by title.",
+    "Resolve a SPECIFIC movie or TV series explicitly named by title. For an add/download/re-download request with a named title, this MUST be the first step: resolve the title before any Radarr/Sonarr request or status call, because write tools require a grounded catalogue ID. Preserve even short or ordinary-word titles as opaque text. NEVER reinterpret words inside a named title as person, genre, theme, keyword, or year constraints. Do NOT use this for an indefinite description such as 'a comedy', 'a Christmas movie', or 'a series with an actor'; those are discovery constraints.",
     {
         "query": {"type": "string", "description": "The media title as named by the user; preserve the title wording rather than decomposing its words."},
         "media_type": {"type": "string", "enum": ["movie", "tv"]},
@@ -495,7 +495,7 @@ PERSON_TOOL = _tool(
 
 GENRE_TOOL = _tool(
     "catalog_genre",
-    "Declare one movie or TV genre constraint. Use the canonical catalogue genre name, normally English (for example Science Fiction). This is declarative only: Python records it without scanning the catalogue. Declare every constraint from the user request, then call catalog_execute once.",
+    "Declare one movie or TV GENRE constraint. Use only an actual broad catalogue genre (for example Science Fiction, Comedy, Thriller, Romance). Themes, subjects, settings, holidays, plot concepts and motifs are NOT genres: use catalog_keyword_vocabulary/catalog_keyword for those. This is declarative only: Python records it without scanning the catalogue. Declare every constraint from the user request, then call catalog_execute once.",
     {
         "name": {"type": "string"},
         "media_type": {"type": "string", "enum": ["movie", "tv"]},
