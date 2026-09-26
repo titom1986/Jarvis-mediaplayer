@@ -21,6 +21,8 @@ TOOLS = [
 
 
 def execute_tool(name, args):
+    if name == "catalog_title":
+        return catalog_sets.title(args["query"], args["media_type"])
     if name == "catalog_person":
         return catalog_sets.person(args["name"], args["media_type"])
     if name == "catalog_genre":
@@ -399,7 +401,26 @@ def run_agent(question):
                 print(f"> {name}({args})")
                 started = time.perf_counter()
 
-                if name == "catalog_execute":
+                if name == "catalog_title":
+                    try:
+                        result = execute_tool(name, args)
+                    except Exception as exc:
+                        result = {"error": str(exc)}
+                    if not result.get("error"):
+                        # A named title is already grounded catalogue data. It is
+                        # deliberately kept separate from semantic discovery: words
+                        # inside the title are not constraints.
+                        grounded_catalogue_results = {
+                            "count": len(result.get("results", [])),
+                            "results": result.get("results", []),
+                        }
+                        result["grounded_results"] = grounded_catalogue_results
+                        result["required_action"] = (
+                            "The named target is grounded. Continue with the user's requested "
+                            "status/action using only an ID from grounded_results. Do not reinterpret "
+                            "words inside the title as catalogue constraints."
+                        )
+                elif name == "catalog_execute":
                     if not pending_catalog_batch:
                         result = {"error": "no pending catalogue constraints"}
                     else:
