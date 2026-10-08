@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Private YouTube -> ytdl-sub -> Plex/Plexamp Telegram gateway. Python stdlib."""
-import json, os, re, subprocess, threading, queue, time, urllib.request, urllib.parse
+import json, os, re, shutil, subprocess, threading, queue, time, urllib.request, urllib.parse
 from pathlib import Path
 
 BASE=Path(__file__).resolve().parent
@@ -78,6 +78,20 @@ def music_export(vid):
     folder=AUDIO/clean(artist)/clean(album)
     folder.mkdir(parents=True,exist_ok=True)
     out=folder/(clean(track)+'.opus')
+    # Install local album artwork before Plex can discover the audio file.
+    # Do not overwrite existing artwork when several tracks share a folder.
+    cover=folder/'cover.jpg'
+    if not cover.exists():
+        poster=mkv.parent/'poster.jpg'
+        if poster.is_file():
+            staged=folder/'.cover.tmp.jpg'
+            try:
+                shutil.copyfile(poster,staged)
+                staged.replace(cover)
+            finally:
+                staged.unlink(missing_ok=True)
+        else:
+            print('No poster.jpg for music artwork:',vid,flush=True)
     if out.exists():return 'Audio déjà présent : '+str(out)
     tmp=out.with_suffix('.tmp.opus')
     try:
