@@ -103,14 +103,24 @@ def music_export(vid):
 
 def worker():
     while True:
-        chat,vid,music=JOBS.get()
+        chat,vid,mode=JOBS.get()
         BUSY['id']=vid
         try:
             send(chat,'Téléchargement en cours : '+vid)
             subprocess.run(['docker','exec','ytdl-sub','ytdl-sub','--config','/config/config.yaml','dl','--yt','--u','https://youtu.be/'+vid],check=True,timeout=14400,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
             mkv,_=locate(vid)
-            msg='Vidéo prête : '+mkv.name+'\n'+scan('PLEX_VIDEO_SECTION')
-            if music:msg+='\n'+music_export(vid)+'\n'+scan('PLEX_MUSIC_SECTION')
+            parts=[]
+            if mode in ('v','m'):
+                parts.append('Vidéo prête : '+mkv.name)
+                if os.environ.get('PLEX_URL') and os.environ.get('PLEX_TOKEN') and os.environ.get('PLEX_VIDEO_SECTION'):
+                    parts.append(scan('PLEX_VIDEO_SECTION'))
+            if mode in ('m','a'):
+                parts.append(music_export(vid))
+                if os.environ.get('PLEX_URL') and os.environ.get('PLEX_TOKEN') and os.environ.get('PLEX_MUSIC_SECTION'):
+                    parts.append(scan('PLEX_MUSIC_SECTION'))
+            if mode=='a':
+                parts.append('Mode audio : la vidéo source reste stockée sur le serveur (réutilisable).')
+            msg='\n'.join(parts)
             send(chat,msg)
         except subprocess.CalledProcessError as e:
             send(chat,'Échec du téléchargement ou de la conversion (code '+str(e.returncode)+'). Consulte les logs du serveur.')
@@ -124,27 +134,27 @@ def handle(update):
         if user not in ALLOWED or msg.get('chat',{}).get('type')!='private':return
         chat=msg['chat']['id'];txt=msg.get('text','')
         if txt.startswith(('/start','/help')):
-            send(chat,'Envoie un lien YouTube. Choisis ensuite Vidéo Plex ou Vidéo + Plexamp. /status pour la file.');return
+            send(chat,'Envoie un lien YouTube. Choisis Vidéo Plex, Vidéo + Plexamp ou Audio Plexamp. /status pour la file.');return
         if txt.startswith('/status'):
             send(chat,'En cours : '+str(BUSY['id'] or 'aucun')+' ; en attente : '+str(JOBS.qsize()));return
         for url in URL.findall(txt):
             try:vid=get_id(url.rstrip('.,;!?)'))
             except ValueError:continue
             PENDING[(user,vid)]=time.monotonic()
-            send(chat,'Vidéo '+vid+' : choisir la destination.',[[{'text':'Vidéo Plex','callback_data':'v:'+vid},{'text':'Vidéo + Plexamp','callback_data':'m:'+vid}]])
+            send(chat,'Vidéo '+vid+' : choisir la destination.',[[{'text':'Vidéo Plex','callback_data':'v:'+vid},{'text':'Vidéo + Plexamp','callback_data':'m:'+vid}],[{'text':'Audio Plexamp','callback_data':'a:'+vid}]])
             return
         send(chat,'Envoie un lien YouTube valide.')
     cb=update.get('callback_query')
     if cb:
         user=cb.get('from',{}).get('id')
         if user not in ALLOWED or cb.get('message',{}).get('chat',{}).get('type')!='private':return
-        data=cb.get('data','');match=re.fullmatch(r'([vm]):([A-Za-z0-9_-]{11})',data)
+        data=cb.get('data','');match=re.fullmatch(r'([vma]):([A-Za-z0-9_-]{11})',data)
         if not match:return
         mode,vid=match.groups()
         if time.monotonic()-PENDING.pop((user,vid),-1e10)>3600:return
         request('answerCallbackQuery',{'callback_query_id':cb['id']})
         chat=cb['message']['chat']['id']
-        try:JOBS.put_nowait((chat,vid,mode=='m'));send(chat,'Ajouté à la file : '+vid)
+        try:JOBS.put_nowait((chat,vid,mode));send(chat,'Ajouté à la file : '+vid)
         except queue.Full:send(chat,'File pleine, réessaie plus tard.')
 
 threading.Thread(target=worker,daemon=True).start()
