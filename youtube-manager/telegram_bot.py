@@ -14,6 +14,8 @@ API='https://api.telegram.org/bot'+TOKEN+'/'
 JOBS=queue.Queue(maxsize=20)
 PENDING={}
 BUSY={'id':None}
+QUEUED=set()
+QUEUE_LOCK=threading.Lock()
 URL=re.compile(r'https?://[^\s<>]+')
 VID=re.compile(r'^[A-Za-z0-9_-]{11}$')
 VIDEO=Path(os.environ.get('YOUTUBE_VIDEO_DIR',str(Path.home()/'data/youtube')))
@@ -56,6 +58,7 @@ def scan(section):
 
 def locate(vid):
     matches=[]
+    if not VIDEO.is_dir():raise RuntimeError('Dossier vidéo introuvable : '+str(VIDEO))
     for info in VIDEO.rglob('*.info.json'):
         try:
             d=json.loads(info.read_text())
@@ -65,6 +68,10 @@ def locate(vid):
         except (OSError,ValueError):continue
     if len(matches)!=1:raise RuntimeError(f'Fichier vidéo introuvable ou ambigu : {len(matches)} correspondances')
     return matches[0]
+
+def existing_video(vid):
+    try:return locate(vid)
+    except RuntimeError:return None
 
 def music_export(vid):
     mkv,info=locate(vid)
@@ -82,17 +89,20 @@ def music_export(vid):
     # Do not overwrite existing artwork when several tracks share a folder.
     cover=folder/'cover.jpg'
     if not cover.exists():
-        poster=mkv.parent/'poster.jpg'
-        if poster.is_file():
+        poster=next((p for p in (mkv.parent/'poster.jpg',mkv.parent/'cover.jpg',mkv.parent/'poster.png',mkv.parent/'cover.png') if p.is_file()),None)
+        if poster:
+            # Plex recognizes cover.jpg; convert PNG rather than copying PNG bytes under a JPEG extension.
             staged=folder/'.cover.tmp.jpg'
             try:
-                shutil.copyfile(poster,staged)
+                if poster.suffix.lower()=='.png':
+                    subprocess.run(['ffmpeg','-nostdin','-v','error','-y','-i',str(poster),'-frames:v','1',str(staged)],check=True,timeout=60)
+                else:shutil.copyfile(poster,staged)
                 staged.replace(cover)
-            finally:
-                staged.unlink(missing_ok=True)
+            finally:staged.unlink(missing_ok=True)
         else:
-            print('No poster.jpg for music artwork:',vid,flush=True)
-    if out.exists():return 'Audio déjà présent : '+str(out)
+            print('No local artwork for music:',vid,flush=True)
+    if out.exists() and out.stat().st_size>0:return 'Audio déjà présent : '+str(out)
+    if out.exists():out.unlink()
     tmp=out.with_suffix('.tmp.opus')
     try:
         subprocess.run(['ffmpeg','-nostdin','-v','error','-i',str(mkv),'-map','0:a:0','-c:a','copy','-metadata','title='+track,'-metadata','artist='+artist,'-metadata','album='+album,'-y',str(tmp)],check=True,timeout=1800)
@@ -106,9 +116,14 @@ def worker():
         chat,vid,mode=JOBS.get()
         BUSY['id']=vid
         try:
-            send(chat,'Téléchargement en cours : '+vid)
-            subprocess.run(['docker','exec','ytdl-sub','ytdl-sub','--config','/config/config.yaml','dl','--yt','--u','https://youtu.be/'+vid],check=True,timeout=14400,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
-            mkv,_=locate(vid)
+            found=existing_video(vid)
+            if found:
+                send(chat,'Vidéo déjà présente ; réutilisation du fichier local : '+vid)
+                mkv,_=found
+            else:
+                send(chat,'Téléchargement en cours : '+vid)
+                subprocess.run(['docker','exec','ytdl-sub','ytdl-sub','--config','/config/config.yaml','dl','--yt','--u','https://youtu.be/'+vid],check=True,timeout=14400,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+                mkv,_=locate(vid)
             parts=[]
             if mode in ('v','m'):
                 parts.append('Vidéo prête : '+mkv.name)
@@ -123,9 +138,17 @@ def worker():
             msg='\n'.join(parts)
             send(chat,msg)
         except subprocess.CalledProcessError as e:
-            send(chat,'Échec du téléchargement ou de la conversion (code '+str(e.returncode)+'). Consulte les logs du serveur.')
-        except Exception as e:send(chat,'Erreur : '+str(e)[:350])
-        finally:BUSY['id']=None;JOBS.task_done()
+            details=(e.stderr or b'')
+            if isinstance(details,bytes):details=details.decode('utf-8','replace')
+            print('Job failed:',vid,'mode:',mode,'exit:',e.returncode,'stderr:',details[-2000:],flush=True)
+            send(chat,'Échec (code '+str(e.returncode)+') : '+(details.strip()[-450:] or 'voir jarvis-youtube.log'))
+        except Exception as e:
+            print('Job error:',vid,'mode:',mode,type(e).__name__,str(e)[:1000],flush=True)
+            send(chat,'Erreur : '+str(e)[:350])
+        finally:
+            with QUEUE_LOCK:QUEUED.discard((vid,mode))
+            BUSY['id']=None
+            JOBS.task_done()
 
 def handle(update):
     msg=update.get('message')
@@ -154,8 +177,17 @@ def handle(update):
         if time.monotonic()-PENDING.pop((user,vid),-1e10)>3600:return
         request('answerCallbackQuery',{'callback_query_id':cb['id']})
         chat=cb['message']['chat']['id']
-        try:JOBS.put_nowait((chat,vid,mode));send(chat,'Ajouté à la file : '+vid)
-        except queue.Full:send(chat,'File pleine, réessaie plus tard.')
+        with QUEUE_LOCK:
+            if (vid,mode) in QUEUED:
+                send(chat,'Demande déjà en cours ou en attente : '+vid+' (mode '+mode+')')
+                return
+            try:
+                JOBS.put_nowait((chat,vid,mode))
+                QUEUED.add((vid,mode))
+            except queue.Full:
+                send(chat,'File pleine, réessaie plus tard.')
+                return
+        send(chat,'Ajouté à la file : '+vid)
 
 threading.Thread(target=worker,daemon=True).start()
 offset=None
